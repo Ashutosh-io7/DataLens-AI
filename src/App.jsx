@@ -1,7 +1,8 @@
 import Navbar from "./components/Navbar"; 
 import Hero from "./components/Hero";
 import ProductPreview from "./components/ProductPreview"; 
-import HowItWorks from "./components/HowItWorks";
+import HowItWorks from "./components/HowItWorks"; 
+import ProductCapabilities from "./components/ProductCapabilities";
 
 function App() {
   return (
@@ -9,7 +10,8 @@ function App() {
       <Navbar/> 
       <Hero/>
       <ProductPreview/> 
-      <HowItWorks/>
+      <HowItWorks/> 
+      <ProductCapabilities/>
     </div>
   )
 }
