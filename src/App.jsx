@@ -2,7 +2,8 @@ import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import ProductPreview from "./components/ProductPreview"; 
 import HowItWorks from "./components/HowItWorks"; 
-import ProductCapabilities from "./components/ProductCapabilities";
+import ProductCapabilities from "./components/ProductCapabilities"; 
+import AIAnalysisPreview from "./components/AIAnalysisPreview";
 
 function App() {
   return (
@@ -11,7 +12,8 @@ function App() {
       <Hero/>
       <ProductPreview/> 
       <HowItWorks/> 
-      <ProductCapabilities/>
+      <ProductCapabilities/> 
+      <AIAnalysisPreview/>
     </div>
   )
 }
