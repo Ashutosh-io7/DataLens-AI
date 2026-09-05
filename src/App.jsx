@@ -9,17 +9,17 @@ import Footer from "./components/Footer";
 
 function App() {
   return (
-    <div class = "min-h-screen bg-slate-50">
-      <Navbar/> 
-      <Hero/>
-      <ProductPreview/> 
-      <HowItWorks/> 
-      <ProductCapabilities/> 
-      <AIAnalysisPreview/> 
-      <FinalCTA/> 
-      <Footer/>
+    <div className = "min-h-screen bg-slate-50">
+      <Navbar /> 
+      <Hero />
+      <ProductPreview /> 
+      <HowItWorks /> 
+      <ProductCapabilities /> 
+      <AIAnalysisPreview /> 
+      <FinalCTA /> 
+      <Footer />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
