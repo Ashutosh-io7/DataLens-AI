@@ -3,7 +3,9 @@ import Hero from "./components/Hero";
 import ProductPreview from "./components/ProductPreview"; 
 import HowItWorks from "./components/HowItWorks"; 
 import ProductCapabilities from "./components/ProductCapabilities"; 
-import AIAnalysisPreview from "./components/AIAnalysisPreview";
+import AIAnalysisPreview from "./components/AIAnalysisPreview"; 
+import FinalCTA from "./components/FinalCTA"; 
+import Footer from "./components/Footer";
 
 function App() {
   return (
@@ -13,7 +15,9 @@ function App() {
       <ProductPreview/> 
       <HowItWorks/> 
       <ProductCapabilities/> 
-      <AIAnalysisPreview/>
+      <AIAnalysisPreview/> 
+      <FinalCTA/> 
+      <Footer/>
     </div>
   )
 }
