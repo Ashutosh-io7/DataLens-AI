@@ -5,6 +5,7 @@ import {
     MessageSquare,
     Settings,
 } from "lucide-react"; 
+import DataLensLogo from "./DataLensLogo";
 
 function AppSidebar() {
     return (
@@ -13,7 +14,7 @@ function AppSidebar() {
             <div className="flex h-16 items-center border-b border-slate-200 px-5">
                 <div className="flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-                        <BarChart3 size={17} className="text-white"/>
+                        <DataLensLogo size={27} className="text-white"/>
                     </div> 
 
                     <span className="text-base font-bold tracking-tight text-slate-900">
