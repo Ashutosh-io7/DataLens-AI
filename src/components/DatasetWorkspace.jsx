@@ -12,6 +12,7 @@ function DatasetWorkspace() {
   const [data, setData] = useState([]);
   const [columns, setColumns] = useState([]);
   const [totalRows, setTotalRows] = useState(0);  
+  const [profile, setProfile] = useState(null); 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -31,6 +32,7 @@ function DatasetWorkspace() {
       setData(dataset.preview || []);
       setColumns(dataset.column_names || []);
       setTotalRows(dataset.rows || 0);
+      setProfile(dataset.profile || null); 
       setLoading(false);
     } catch {
       setError("Unable to load dataset information.");
@@ -98,7 +100,69 @@ function DatasetWorkspace() {
                 </p>
               </div>
             </div>
-          )}
+          )} 
+
+          {!loading && !error && profile && (
+            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <p className="text-xs font-medium text-slate-500">
+                  Missing cells
+                </p>
+
+                <p className="mt-3 text-2xl font-bold text-slate-900">
+                  {profile.missing_cells.toLocaleString()}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Across all columns
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <p className="text-xs font-medium text-slate-500">
+                  Duplicate rows
+                </p>
+
+                <p className="mt-3 text-2xl font-bold text-slate-900">
+                  {profile.duplicate_rows.toLocaleString()}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Duplicate records
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <p className="text-xs font-medium text-slate-500">
+                  Numeric columns
+                </p>
+
+                <p className="mt-3 text-2xl font-bold text-slate-900">
+                  {profile.numeric_columns.length}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Suitable for statistics
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <p className="text-xs font-medium text-slate-500">
+                  Categorical columns
+                </p>
+
+                <p className="mt-3 text-2xl font-bold text-slate-900">
+                  {profile.categorical_columns.length}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Suitable for grouping
+                </p>
+              </div>
+
+            </div>
+)}
 
           <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
 

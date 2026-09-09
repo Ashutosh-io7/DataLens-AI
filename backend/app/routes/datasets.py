@@ -1,53 +1,62 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile 
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from app.services.dataset_service import read_dataset 
+from app.services.dataset_service import (
+    profile_dataset,
+    read_dataset,
+)
 
-router = APIRouter() 
+router = APIRouter()
+
 
 @router.post("/upload")
-async def upload_dataset(file : UploadFile = File(...)) : 
-    if not file.filename : 
+async def upload_dataset(file: UploadFile = File(...)):
+    if not file.filename:
         raise HTTPException(
-            status_code = 400,
-            detail = "No file provided.",  
-        ) 
+            status_code=400,
+            detail="No file provided.",
+        )
 
-    extension = file.filename.rsplit(".", 1)[-1].lower() 
+    extension = file.filename.rsplit(".", 1)[-1].lower()
 
-    if extension not in {"csv", "xlsx", "xls"} : 
+    if extension not in {"csv", "xlsx", "xls"}:
         raise HTTPException(
-            status_code = 400,
-            detail = "Only CSV and Excel files are supported.", 
-        ) 
+            status_code=400,
+            detail="Only CSV and Excel files are supported.",
+        )
 
-    try : 
-        content = await file.read() 
+    try:
+        content = await file.read()
 
         df = read_dataset(
-            filename = file.filename,
-            content = content, 
-        ) 
+            filename=file.filename,
+            content=content,
+        )
 
-        preview = df.head(10).fillna("").to_dict(
-            orient = "records" 
-        ) 
+        preview = (
+            df.head(10)
+            .fillna("")
+            .to_dict(orient="records")
+        )
 
         column_types = {
-            column : str(dtype) 
-            for column, dtype in df.dtypes.items() 
-        } 
+            column: str(dtype)
+            for column, dtype in df.dtypes.items()
+        }
+
+        profile = profile_dataset(df)
 
         return {
-            "filename" : file.filename,
-            "rows" : len(df),
-            "columns" : len(df.columns),
-            "column_names" : df.columns.tolist(),
-            "column_types" : column_types,
-            "preview" : preview,
-        } 
+            "filename": file.filename,
+            "rows": len(df),
+            "columns": len(df.columns),
+            "column_names": df.columns.tolist(),
+            "column_types": column_types,
+            "preview": preview,
+            "profile": profile,
+        }
 
-    except Exception as exc : 
+    except Exception as exc:
         raise HTTPException(
-            status_code = 400,
-            detail = f"Unable to process dataset : {str(exc)}", 
+            status_code=400,
+            detail=f"Unable to process dataset: {str(exc)}",
         )
