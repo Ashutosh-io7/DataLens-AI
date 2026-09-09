@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useRef, useState } from "react"; 
+import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
   Bell,
@@ -12,9 +13,12 @@ import {
 import AppSidebar from "./AppSidebar";
 
 function AppShell() {
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef(null); 
+  const navigate = useNavigate();
+
   const [selectedFile, setSelectedFile] = useState(null);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false); 
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -43,7 +47,44 @@ function AppShell() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  };
+  }; 
+
+  const handleStartAnalyzing = async () => {
+    if (!selectedFile) return; 
+
+    setUploading(true);
+    setError(""); 
+
+    try {
+      const formData = new FormData(); 
+      formData.append("file", selectedFile); 
+
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/datasets/upload",
+        {
+          method : "POST",
+          body : formData, 
+        }
+      );
+
+      const result = await response.json(); 
+
+      if (!response.ok) {
+        throw new Error(result.detail || "Unable to upload dataset.");
+      } 
+
+      sessionStorage.setItem(
+        "datalens_dataset",
+        JSON.stringify(result)
+      ); 
+
+      navigate("/app/datasets/1"); 
+    } catch (err) {
+      setError(err.message || "Unable to upload dataset.");  
+    } finally {
+      setUploading(false); 
+    }
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -257,8 +298,12 @@ function AppShell() {
                     </div>
                   </div>
 
-                  <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
-                    Start analyzing
+                  <button
+                    onClick={handleStartAnalyzing} 
+                    disabled={uploading} 
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {uploading ? "Processing..." : "Start analyzing"}
                   </button>
                 </div>
               ) : (

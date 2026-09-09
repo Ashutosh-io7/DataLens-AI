@@ -8,7 +8,8 @@ import ProductCapabilities from "./components/ProductCapabilities";
 import AIAnalysisPreview from "./components/AIAnalysisPreview"; 
 import FinalCTA from "./components/FinalCTA"; 
 import Footer from "./components/Footer";  
-import AppShell from "./components/AppShell";
+import AppShell from "./components/AppShell"; 
+import DatasetWorkspace from "./components/DatasetWorkspace";
 
 function LandingPage() {
   return (
@@ -33,9 +34,11 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LandingPage/>}/> 
+        <Route path = "/" element = {<LandingPage/>}/> 
 
-        <Route path = "/app" element={<AppShell />}/>
+        <Route path = "/app" element = {<AppShell />}/> 
+
+        <Route path = "/app/datasets/:id" element = {<DatasetWorkspace />} /> 
 
       </Routes>
     </BrowserRouter>
