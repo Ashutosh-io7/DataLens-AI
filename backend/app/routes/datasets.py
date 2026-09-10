@@ -1,8 +1,10 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.services.dataset_service import (
+    get_dataset_path,
     profile_dataset,
     read_dataset,
+    save_dataset,
 )
 
 router = APIRouter()
@@ -32,6 +34,11 @@ async def upload_dataset(file: UploadFile = File(...)):
             content=content,
         )
 
+        dataset_id = save_dataset(
+            filename=file.filename,
+            content=content,
+        )
+
         preview = (
             df.head(10)
             .fillna("")
@@ -46,6 +53,7 @@ async def upload_dataset(file: UploadFile = File(...)):
         profile = profile_dataset(df)
 
         return {
+            "dataset_id": dataset_id,
             "filename": file.filename,
             "rows": len(df),
             "columns": len(df.columns),
@@ -59,4 +67,53 @@ async def upload_dataset(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=400,
             detail=f"Unable to process dataset: {str(exc)}",
+        )
+
+
+@router.get("/{dataset_id}")
+def get_dataset(dataset_id: str):
+    try:
+        dataset_path = get_dataset_path(dataset_id)
+
+        content = dataset_path.read_bytes()
+
+        df = read_dataset(
+            filename=dataset_path.name,
+            content=content,
+        )
+
+        preview = (
+            df.head(10)
+            .fillna("")
+            .to_dict(orient="records")
+        )
+
+        column_types = {
+            column: str(dtype)
+            for column, dtype in df.dtypes.items()
+        }
+
+        profile = profile_dataset(df)
+
+        return {
+            "dataset_id": dataset_id,
+            "filename": dataset_path.name,
+            "rows": len(df),
+            "columns": len(df.columns),
+            "column_names": df.columns.tolist(),
+            "column_types": column_types,
+            "preview": preview,
+            "profile": profile,
+        }
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Dataset not found.",
+        )
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unable to load dataset: {str(exc)}",
         )

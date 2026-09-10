@@ -1,6 +1,12 @@
 from io import BytesIO
+from pathlib import Path
+from uuid import uuid4
 
 import pandas as pd
+
+
+UPLOAD_DIR = Path("data/uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def read_dataset(filename: str, content: bytes) -> pd.DataFrame:
@@ -55,3 +61,24 @@ def profile_dataset(df: pd.DataFrame) -> dict:
         "categorical_columns": categorical_columns,
         "statistics": statistics,
     }
+
+
+def save_dataset(filename: str, content: bytes) -> str:
+    dataset_id = str(uuid4())
+
+    extension = filename.rsplit(".", 1)[-1].lower()
+
+    file_path = UPLOAD_DIR / f"{dataset_id}.{extension}"
+
+    file_path.write_bytes(content)
+
+    return dataset_id
+
+
+def get_dataset_path(dataset_id: str) -> Path:
+    matches = list(UPLOAD_DIR.glob(f"{dataset_id}.*"))
+
+    if not matches:
+        raise FileNotFoundError("Dataset not found.")
+
+    return matches[0]

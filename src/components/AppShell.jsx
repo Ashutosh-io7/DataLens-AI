@@ -50,41 +50,45 @@ function AppShell() {
   }; 
 
   const handleStartAnalyzing = async () => {
-    if (!selectedFile) return; 
+    if (!selectedFile) return;
 
     setUploading(true);
-    setError(""); 
+    setError("");
 
     try {
-      const formData = new FormData(); 
-      formData.append("file", selectedFile); 
+      const formData = new FormData();
+      formData.append("file", selectedFile);
 
       const response = await fetch(
         "http://127.0.0.1:8000/api/datasets/upload",
         {
-          method : "POST",
-          body : formData, 
+          method: "POST",
+          body: formData,
         }
       );
 
-      const result = await response.json(); 
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.detail || "Unable to upload dataset.");
-      } 
+        throw new Error(
+          result.detail || "Unable to upload dataset."
+        );
+      }
 
       sessionStorage.setItem(
         "datalens_dataset",
         JSON.stringify(result)
-      ); 
+      );
 
-      navigate("/app/datasets/1"); 
+      window.location.href = `/app/datasets/${result.dataset_id}`;
     } catch (err) {
-      setError(err.message || "Unable to upload dataset.");  
+      setError(
+        err.message || "Unable to upload dataset."
+      );
     } finally {
-      setUploading(false); 
+      setUploading(false);
     }
-  }
+};
 
   return (
     <div className="flex min-h-screen bg-slate-50">

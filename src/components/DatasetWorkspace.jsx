@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from "react"; 
+import { useParams } from "react-router-dom";
 import {
   ArrowLeft,
   BarChart3,
@@ -15,30 +16,42 @@ function DatasetWorkspace() {
   const [profile, setProfile] = useState(null); 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const { id } = useParams(); 
 
   useEffect(() => {
-    const storedDataset = sessionStorage.getItem("datalens_dataset");
+    const loadDataset = async () => {
+      try {
+        setLoading(true);
+        setError("");
 
-    if (!storedDataset) {
-      setError("Dataset information could not be found. Please upload it again.");
-      setLoading(false);
-      return;
-    }
+        const response = await fetch(
+          `http://127.0.0.1:8000/api/datasets/${id}`
+        );
 
-    try {
-      const dataset = JSON.parse(storedDataset);
+        const dataset = await response.json();
 
-      setFileName(dataset.filename || "Dataset");
-      setData(dataset.preview || []);
-      setColumns(dataset.column_names || []);
-      setTotalRows(dataset.rows || 0);
-      setProfile(dataset.profile || null); 
-      setLoading(false);
-    } catch {
-      setError("Unable to load dataset information.");
-      setLoading(false);
-    }
-  }, []);
+        if (!response.ok) {
+          throw new Error(
+            dataset.detail || "Unable to load dataset."
+          );
+        }
+
+        setFileName(dataset.filename);
+        setData(dataset.preview || []);
+        setColumns(dataset.column_names || []);
+        setTotalRows(dataset.rows || 0);
+        setProfile(dataset.profile || null);
+      } catch (err) {
+        setError(
+          err.message || "Unable to load dataset."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDataset();
+  }, [id]);
 
 
   return (
