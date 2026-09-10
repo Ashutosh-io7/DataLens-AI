@@ -1,4 +1,6 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile 
+from pydantic import BaseModel 
+from app.services.query_service import answer_question
 
 from app.services.dataset_service import (
     get_dataset_path,
@@ -7,7 +9,10 @@ from app.services.dataset_service import (
     save_dataset,
 )
 
-router = APIRouter()
+router = APIRouter() 
+
+class QueryRequest (BaseModel) :
+    question : str 
 
 
 @router.post("/upload")
@@ -116,4 +121,51 @@ def get_dataset(dataset_id: str):
         raise HTTPException(
             status_code=400,
             detail=f"Unable to load dataset: {str(exc)}",
+        ) 
+
+@router.post("/{dataset_id}/query")
+def query_dataset(
+    dataset_id: str,
+    request: QueryRequest,
+):
+    try:
+        dataset_path = get_dataset_path(dataset_id)
+
+        content = dataset_path.read_bytes()
+
+        df = read_dataset(
+            filename=dataset_path.name,
+            content=content,
+        )
+
+        if not request.question.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Question cannot be empty.",
+            )
+
+        result = answer_question(
+            df,
+            request.question,
+        )
+
+        return {
+            "dataset_id": dataset_id,
+            "question": request.question,
+            **result,
+        }
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail="Dataset not found.",
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unable to analyze dataset: {str(exc)}",
         )

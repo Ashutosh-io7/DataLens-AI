@@ -17,6 +17,9 @@ function DatasetWorkspace() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const { id } = useParams(); 
+  const [question, setQuestion] = useState(""); 
+  const [answer, setAnswer] = useState(""); 
+  const [asking, setAsking] = useState(false); 
 
   useEffect(() => {
     const loadDataset = async () => {
@@ -51,7 +54,43 @@ function DatasetWorkspace() {
     };
 
     loadDataset();
-  }, [id]);
+  }, [id]); 
+
+  const handleAskQuestion = async () => {
+    if (!question.trim() || asking) return;
+
+    setAsking(true);
+    setAnswer("");
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/datasets/${id}/query`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            question,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result.detail || "Unable to analyze your question."
+        );
+      }
+
+      setAnswer(result.answer);
+    } catch (err) {
+      setAnswer(err.message || "Something went wrong.");
+    } finally {
+      setAsking(false);
+    }
+};
 
 
   return (
@@ -311,8 +350,36 @@ function DatasetWorkspace() {
               </div>
 
               <div className="border-t border-slate-200 p-4">
-                <div className="rounded-lg border border-slate-200 px-4 py-3 text-xs text-slate-400">
-                  Ask a question about your data...
+                {answer && (
+                  <div className="mb-3 rounded-lg bg-slate-50 px-4 py-3">
+                    <p className="text-xs leading-5 text-slate-600">
+                      {answer}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={question}
+                    onChange={(event) => setQuestion(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        handleAskQuestion();
+                      }
+                    }}
+                    placeholder="Ask a question about your data..."
+                    disabled={asking}
+                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-4 py-3 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+                  />
+
+                  <button
+                    onClick={handleAskQuestion}
+                    disabled={!question.trim() || asking}
+                    className="rounded-lg bg-blue-600 px-4 py-3 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {asking ? "..." : "Ask"}
+                  </button>
                 </div>
               </div>
             </section>
