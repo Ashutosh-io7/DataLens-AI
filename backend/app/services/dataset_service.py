@@ -1,12 +1,19 @@
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
+import json
 
 import pandas as pd
 
 
-UPLOAD_DIR = Path("data/uploads")
+BASE_DIR = Path(__file__).resolve().parents[2]
+DATA_DIR = BASE_DIR / "data"
+UPLOAD_DIR = DATA_DIR / "uploads"
+METADATA_DIR = DATA_DIR / "metadata"
+
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+METADATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def read_dataset(filename: str, content: bytes) -> pd.DataFrame:
@@ -63,16 +70,36 @@ def profile_dataset(df: pd.DataFrame) -> dict:
     }
 
 
-def save_dataset(filename: str, content: bytes) -> str:
+def save_dataset(
+    filename: str,
+    content: bytes,
+    rows: int,
+    columns: int,
+) -> dict:
     dataset_id = str(uuid4())
 
     extension = filename.rsplit(".", 1)[-1].lower()
 
     file_path = UPLOAD_DIR / f"{dataset_id}.{extension}"
+    metadata_path = METADATA_DIR / f"{dataset_id}.json"
 
     file_path.write_bytes(content)
 
-    return dataset_id
+    metadata = {
+        "dataset_id": dataset_id,
+        "filename": filename,
+        "extension": extension,
+        "rows": rows,
+        "columns": columns,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2),
+        encoding="utf-8",
+    )
+
+    return metadata
 
 
 def get_dataset_path(dataset_id: str) -> Path:
@@ -82,3 +109,34 @@ def get_dataset_path(dataset_id: str) -> Path:
         raise FileNotFoundError("Dataset not found.")
 
     return matches[0]
+
+
+def get_dataset_metadata(dataset_id: str) -> dict:
+    metadata_path = METADATA_DIR / f"{dataset_id}.json"
+
+    if not metadata_path.exists():
+        raise FileNotFoundError("Dataset metadata not found.")
+
+    return json.loads(
+        metadata_path.read_text(encoding="utf-8")
+    )
+
+
+def list_dataset_metadata() -> list[dict]:
+    datasets = []
+
+    for metadata_path in METADATA_DIR.glob("*.json"):
+        try:
+            metadata = json.loads(
+                metadata_path.read_text(encoding="utf-8")
+            )
+            datasets.append(metadata)
+        except (json.JSONDecodeError, OSError):
+            continue
+
+    datasets.sort(
+        key=lambda dataset: dataset.get("created_at", ""),
+        reverse=True,
+    )
+
+    return datasets
