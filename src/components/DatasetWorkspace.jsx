@@ -6,7 +6,8 @@ import {
   Database,
   MessageSquare,
   Table2,
-} from "lucide-react";
+} from "lucide-react"; 
+import AnalysisChart from "./AnalysisChart";
 
 function DatasetWorkspace() {
   const [fileName, setFileName] = useState("Dataset");
@@ -19,6 +20,7 @@ function DatasetWorkspace() {
   const { id } = useParams(); 
   const [question, setQuestion] = useState(""); 
   const [answer, setAnswer] = useState(""); 
+  const [chart, setChart] = useState(null); 
   const [asking, setAsking] = useState(false); 
 
   useEffect(() => {
@@ -61,6 +63,7 @@ function DatasetWorkspace() {
 
     setAsking(true);
     setAnswer("");
+    setChart(null); 
 
     try {
       const response = await fetch(
@@ -85,6 +88,7 @@ function DatasetWorkspace() {
       }
 
       setAnswer(result.answer);
+      setChart(result.chart || null); 
     } catch (err) {
       setAnswer(err.message || "Something went wrong.");
     } finally {
@@ -356,7 +360,9 @@ function DatasetWorkspace() {
                       {answer}
                     </p>
                   </div>
-                )}
+                )} 
+
+                <AnalysisChart chart={chart} /> 
 
                 <div className="flex gap-2">
                   <input
