@@ -1,6 +1,10 @@
 import { ArrowRight, Play } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-function Hero() {
+function Hero() { 
+
+  const navigate = useNavigate();  
+
   return (
     <section className="relative overflow-hidden px-6 pb-12 pt-8 lg:px-16 lg:pb-16 lg:pt-12">
       {/* Background accents */}
@@ -24,7 +28,7 @@ function Hero() {
         </p>
 
         <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <button className="group flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
+          <button onClick = {() => navigate("/app")} className="group flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
             Analyze your data
             <ArrowRight
               size={16}
