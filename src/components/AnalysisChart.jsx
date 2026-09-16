@@ -14,7 +14,20 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from "recharts";
+} from "recharts"; 
+
+const CHART_COLORS = [
+  "#3b82f6", // blue-500
+  "#8b5cf6", // violet-500
+  "#10b981", // emerald-500
+  "#f59e0b", // amber-500
+  "#ef4444", // red-500
+  "#06b6d4", // cyan-500
+  "#f97316", // orange-500
+  "#84cc16", // lime-500
+  "#ec4899", // pink-500
+  "#6366f1", // indigo-500
+];  
 
 function AnalysisChart({ chart }) {
   if (
@@ -128,7 +141,16 @@ function AnalysisChart({ chart }) {
                 ? [0, 5, 5, 0]
                 : [5, 5, 0, 0]
             }
-          />
+          >
+            {data.map((entry, index) => (
+              <Cell
+              key = {`bar-${index}`}
+              fill = {CHART_COLORS[index % CHART_COLORS.length]} 
+              />
+            ))}
+
+
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     );
@@ -219,7 +241,8 @@ function AnalysisChart({ chart }) {
         >
           {data.map((entry, index) => (
             <Cell
-              key={`${entry.label}-${index}`}
+              key = {`${entry.label}-${index}`}
+              fill = {CHART_COLORS[index % CHART_COLORS.length]}
             />
           ))}
         </Pie>
