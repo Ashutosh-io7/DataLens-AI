@@ -7,7 +7,8 @@ import {
   MessageSquare,
   Table2,
 } from "lucide-react"; 
-import AnalysisChart from "./AnalysisChart";
+import AnalysisChart from "./AnalysisChart"; 
+import { endpoints } from "../api"; 
 
 function DatasetWorkspace() {
   const [fileName, setFileName] = useState("Dataset");
@@ -30,7 +31,7 @@ function DatasetWorkspace() {
         setError("");
 
         const response = await fetch(
-          `http://127.0.0.1:8000/api/datasets/${id}`
+          endpoints.getDataset(id) 
         );
 
         const dataset = await response.json();
@@ -67,7 +68,7 @@ function DatasetWorkspace() {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/datasets/${id}/query`,
+        endpoints.queryDataset(id), 
         {
           method: "POST",
           headers: {

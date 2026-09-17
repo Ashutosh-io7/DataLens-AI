@@ -10,7 +10,8 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import AppSidebar from "./AppSidebar";
+import AppSidebar from "./AppSidebar"; 
+import { endpoints } from "../api"; 
 
 function AppShell() {
   const fileInputRef = useRef(null); 
@@ -60,7 +61,7 @@ function AppShell() {
       formData.append("file", selectedFile);
 
       const response = await fetch(
-        "http://127.0.0.1:8000/api/datasets/upload",
+        endpoints.uploadDataset,
         {
           method: "POST",
           body: formData,
