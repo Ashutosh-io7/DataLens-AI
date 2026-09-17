@@ -1,7 +1,9 @@
+from typing import Any
 from fastapi import APIRouter, File, HTTPException, UploadFile 
 from pydantic import BaseModel 
 from app.services.query_service import answer_question 
 from app.services.dataset_service import (
+    delete_dataset,
     get_dataset_metadata,
     get_dataset_path,
     list_dataset_metadata,
@@ -18,8 +20,9 @@ from app.core.exceptions import (
 
 router = APIRouter() 
 
-class QueryRequest (BaseModel) :
-    question : str 
+class QueryRequest(BaseModel):
+    question: str
+    context: dict[str, Any] | None = None 
 
 
 @router.post("/upload")
@@ -148,6 +151,7 @@ def query_dataset(
         result = answer_question(
             df,
             request.question,
+            context=request.context,
         )
 
         return {
@@ -164,6 +168,13 @@ def query_dataset(
 
     except Exception as exc:
         raise InvalidDatasetError(f"Unable to analyze dataset: {str(exc)}")  
+
+@router.delete("/{dataset_id}")
+def remove_dataset(dataset_id: str):
+    deleted = delete_dataset(dataset_id)
+    if not deleted:
+        raise DatasetNotFoundError("Dataset not found or could not be removed.")
+    return {"message": "Dataset successfully deleted.", "dataset_id": dataset_id}
 
 @router.get("")
 

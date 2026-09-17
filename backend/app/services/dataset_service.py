@@ -1,13 +1,14 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 import json 
-from app.core.config import settings 
-
-import pandas as pd 
 import math 
+import pandas as pd 
 
+from app.core.config import settings 
+from app.core.database import SessionLocal
+from app.models.dataset import Dataset
 
 settings.upload_dir.mkdir(parents=True, exist_ok=True) 
 settings.metadata_dir.mkdir(parents=True, exist_ok=True) 
@@ -26,16 +27,14 @@ def read_dataset(filename: str, content: bytes) -> pd.DataFrame:
 
 
 def _finite(value):
-    """Convert to a plain float, or None if it's NaN/infinite."""
     try:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    return number if math.isfinite(number) else None
+    return round(number, 2) if math.isfinite(number) else None
 
 
 def _infer_semantic_type(series: pd.Series, column: str) -> str:
-    """Figure out what a column actually represents, not just its dtype."""
     non_null = series.dropna()
     if non_null.empty:
         return "text"
@@ -45,8 +44,6 @@ def _infer_semantic_type(series: pd.Series, column: str) -> str:
     if pd.api.types.is_bool_dtype(series):
         return "boolean"
 
-    # Try parsing as dates before checking numeric — dates stored as text
-    # would otherwise get treated as plain categories.
     if not pd.api.types.is_numeric_dtype(series):
         sample = non_null.astype(str).head(200)
         try:
@@ -63,7 +60,6 @@ def _infer_semantic_type(series: pd.Series, column: str) -> str:
             return "identifier"
         return "numeric"
 
-    # Almost every value is unique -> likely an ID or free text, not a category
     if unique_ratio > 0.95 and len(non_null) > 20:
         avg_length = non_null.astype(str).str.len().mean()
         return "text" if avg_length >= 40 else "identifier"
@@ -75,7 +71,6 @@ def _infer_semantic_type(series: pd.Series, column: str) -> str:
 
 
 def _count_outliers(numeric: pd.Series) -> int:
-    """Tukey's rule: flag anything more than 1.5x the interquartile range away."""
     if numeric.size < 4:
         return 0
     q1, q3 = numeric.quantile(0.25), numeric.quantile(0.75)
@@ -109,11 +104,9 @@ def profile_dataset(df: pd.DataFrame) -> dict:
             for column in numeric_columns
         }
 
-    # --- New: classify every column by what it actually represents ---
     semantic_types = {col: _infer_semantic_type(df[col], col) for col in df.columns}
     datetime_columns = [c for c, t in semantic_types.items() if t == "datetime"]
 
-    # --- New: per-column deep profile (outliers, spread, top values) ---
     column_profiles = {}
     for column in df.columns:
         series = df[column]
@@ -139,7 +132,6 @@ def profile_dataset(df: pd.DataFrame) -> dict:
 
         column_profiles[column] = entry
 
-    # --- New: quality score, 0-100, with plain-English reasons ---
     row_count = max(len(df), 1)
     cell_count = max(row_count * len(df.columns), 1)
     missing_cells = int(df.isna().sum().sum())
@@ -192,15 +184,18 @@ def save_dataset(
     content: bytes,
     rows: int,
     columns: int,
+    quality_score: float | None = None,
+    profile: dict | None = None,
 ) -> dict:
     dataset_id = str(uuid4())
-
     extension = filename.rsplit(".", 1)[-1].lower()
 
+    # 1. Save file to disk
     file_path = settings.upload_dir / f"{dataset_id}.{extension}"
     metadata_path = settings.metadata_dir / f"{dataset_id}.json"
-
     file_path.write_bytes(content)
+
+    created_iso = datetime.now(timezone.utc).isoformat()
 
     metadata = {
         "dataset_id": dataset_id,
@@ -208,7 +203,9 @@ def save_dataset(
         "extension": extension,
         "rows": rows,
         "columns": columns,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "size_bytes": len(content),
+        "quality_score": quality_score,
+        "created_at": created_iso,
     }
 
     metadata_path.write_text(
@@ -216,37 +213,75 @@ def save_dataset(
         encoding="utf-8",
     )
 
+    # 2. Persist to PostgreSQL if database is active
+    try:
+        db = SessionLocal()
+        try:
+            db_dataset = Dataset(
+                id=dataset_id,
+                filename=filename,
+                extension=extension,
+                rows=rows,
+                columns=columns,
+                size_bytes=len(content),
+                quality_score=quality_score,
+                profile=profile,
+            )
+            db.add(db_dataset)
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        # Fallback continues without crashing if DB connection is intermittent
+        pass
+
     return metadata
 
 
 def get_dataset_path(dataset_id: str) -> Path:
     matches = list(settings.upload_dir.glob(f"{dataset_id}.*"))
-
     if not matches:
         raise FileNotFoundError("Dataset not found.")
-
     return matches[0]
 
 
 def get_dataset_metadata(dataset_id: str) -> dict:
-    metadata_path = settings.metadata_dir / f"{dataset_id}.json"
+    # Check database first, fallback to JSON
+    try:
+        db = SessionLocal()
+        try:
+            db_dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+            if db_dataset:
+                return db_dataset.to_dict()
+        finally:
+            db.close()
+    except Exception:
+        pass
 
+    metadata_path = settings.metadata_dir / f"{dataset_id}.json"
     if not metadata_path.exists():
         raise FileNotFoundError("Dataset metadata not found.")
-
-    return json.loads(
-        metadata_path.read_text(encoding="utf-8")
-    )
+    return json.loads(metadata_path.read_text(encoding="utf-8"))
 
 
 def list_dataset_metadata() -> list[dict]:
-    datasets = []
+    # Check database first
+    try:
+        db = SessionLocal()
+        try:
+            db_datasets = db.query(Dataset).order_by(Dataset.created_at.desc()).all()
+            if db_datasets:
+                return [d.to_dict() for d in db_datasets]
+        finally:
+            db.close()
+    except Exception:
+        pass
 
+    # Filesystem fallback
+    datasets = []
     for metadata_path in settings.metadata_dir.glob("*.json"):
         try:
-            metadata = json.loads(
-                metadata_path.read_text(encoding="utf-8")
-            )
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             datasets.append(metadata)
         except (json.JSONDecodeError, OSError):
             continue
@@ -255,5 +290,38 @@ def list_dataset_metadata() -> list[dict]:
         key=lambda dataset: dataset.get("created_at", ""),
         reverse=True,
     )
-
     return datasets
+
+
+def delete_dataset(dataset_id: str) -> bool:
+    # Remove from database
+    try:
+        db = SessionLocal()
+        try:
+            db_dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+            if db_dataset:
+                db.delete(db_dataset)
+                db.commit()
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    # Remove files from disk
+    deleted = False
+    for path in settings.upload_dir.glob(f"{dataset_id}.*"):
+        try:
+            path.unlink(missing_ok=True)
+            deleted = True
+        except OSError:
+            pass
+
+    metadata_path = settings.metadata_dir / f"{dataset_id}.json"
+    if metadata_path.exists():
+        try:
+            metadata_path.unlink(missing_ok=True)
+            deleted = True
+        except OSError:
+            pass
+
+    return deleted
