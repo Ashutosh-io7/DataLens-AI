@@ -12,6 +12,11 @@ app = FastAPI(
 
 register_exception_handlers(app) 
 
+from app.core.database import Base, engine
+from app.models.dataset import Dataset
+
+Base.metadata.create_all(bind=engine) 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins = settings.cors_origins, 
