@@ -13,6 +13,12 @@ from app.services.dataset_service import (
     save_dataset,
 )
 
+from app.core.exceptions import (
+    DatasetNotFoundError,
+    InvalidDatasetError,
+    UnsupportedFileTypeError,
+)
+
 router = APIRouter() 
 
 class QueryRequest (BaseModel) :
@@ -30,10 +36,7 @@ async def upload_dataset(file: UploadFile = File(...)):
     extension = file.filename.rsplit(".", 1)[-1].lower()
 
     if extension not in {"csv", "xlsx", "xls"}:
-        raise HTTPException(
-            status_code=400,
-            detail="Only CSV and Excel files are supported.",
-        )
+        raise UnsupportedFileTypeError("Only CSV and Excel files are supported.") 
 
     try:
         content = await file.read()
@@ -76,10 +79,7 @@ async def upload_dataset(file: UploadFile = File(...)):
         }
 
     except Exception as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unable to process dataset: {str(exc)}",
-        )
+        raise InvalidDatasetError(f"Unable to process dataset: {str(exc)}")
 
 
 @router.get("/{dataset_id}")
@@ -122,16 +122,10 @@ def get_dataset(dataset_id: str):
         }
 
     except FileNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail="Dataset not found.",
-        )
+        raise DatasetNotFoundError("Dataset not found") 
 
     except Exception as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unable to load dataset: {str(exc)}",
-        ) 
+        raise InvalidDatasetError(f"Unable to load dataset : {str(exc)}")  
 
 @router.post("/{dataset_id}/query")
 def query_dataset(
@@ -166,19 +160,13 @@ def query_dataset(
         }
 
     except FileNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail="Dataset not found.",
-        )
+        raise DatasetNotFoundError("Dataset not found.")
 
     except HTTPException:
         raise
 
     except Exception as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unable to analyze dataset: {str(exc)}",
-        ) 
+        raise InvalidDatasetError(f"Unable to analyze dataset: {str(exc)}")  
 
 @router.get("")
 

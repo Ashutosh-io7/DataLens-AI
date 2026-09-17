@@ -3,11 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings 
 
 from app.routes.datasets import router as datasets_router 
+from app.core.exceptions import register_exception_handlers 
 
 app = FastAPI(
     title = "DataLens AI API",
     version = "1.0.0", 
-)
+) 
+
+register_exception_handlers(app) 
 
 app.add_middleware(
     CORSMiddleware,
