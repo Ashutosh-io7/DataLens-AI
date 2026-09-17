@@ -1,11 +1,16 @@
-import { useEffect, useState } from "react"; 
-import { useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react"; 
+import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  BarChart3,
+  Bot,
   Database,
+  Info,
+  Lightbulb,
   MessageSquare,
+  Send,
+  Sparkles,
   Table2,
+  User,
 } from "lucide-react"; 
 import AnalysisChart from "./AnalysisChart"; 
 import { endpoints } from "../api"; 
@@ -19,10 +24,29 @@ function DatasetWorkspace() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const { id } = useParams(); 
+  const navigate = useNavigate();
+
+  // Conversational state
+  const [messages, setMessages] = useState([
+    {
+      id: "welcome",
+      sender: "ai",
+      text: "Hello! I am your DataLens AI analyst. Your dataset is loaded and ready. Ask me any question, explore distributions, check missing values, or uncover trends.",
+      suggestedFollowUps: [
+        "How many rows and columns?",
+        "Show missing values breakdown",
+        "Are there any duplicate rows?",
+      ],
+    },
+  ]);
   const [question, setQuestion] = useState(""); 
-  const [answer, setAnswer] = useState(""); 
-  const [chart, setChart] = useState(null); 
   const [asking, setAsking] = useState(false); 
+  const [conversationContext, setConversationContext] = useState({});
+  const chatBottomRef = useRef(null);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, asking]);
 
   useEffect(() => {
     const loadDataset = async () => {
@@ -30,16 +54,11 @@ function DatasetWorkspace() {
         setLoading(true);
         setError("");
 
-        const response = await fetch(
-          endpoints.getDataset(id) 
-        );
-
+        const response = await fetch(endpoints.getDataset(id));
         const dataset = await response.json();
 
         if (!response.ok) {
-          throw new Error(
-            dataset.detail || "Unable to load dataset."
-          );
+          throw new Error(dataset.detail || "Unable to load dataset.");
         }
 
         setFileName(dataset.filename);
@@ -48,9 +67,7 @@ function DatasetWorkspace() {
         setTotalRows(dataset.rows || 0);
         setProfile(dataset.profile || null);
       } catch (err) {
-        setError(
-          err.message || "Unable to load dataset."
-        );
+        setError(err.message || "Unable to load dataset.");
       } finally {
         setLoading(false);
       }
@@ -59,53 +76,77 @@ function DatasetWorkspace() {
     loadDataset();
   }, [id]); 
 
-  const handleAskQuestion = async () => {
-    if (!question.trim() || asking) return;
+  const handleAskQuestion = async (queryText = null) => {
+    const textToSend = (queryText || question).trim();
+    if (!textToSend || asking) return;
 
+    // Add user message to thread
+    const userMsg = {
+      id: Date.now().toString(),
+      sender: "user",
+      text: textToSend,
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setQuestion("");
     setAsking(true);
-    setAnswer("");
-    setChart(null); 
 
     try {
-      const response = await fetch(
-        endpoints.queryDataset(id), 
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            question,
-          }),
-        }
-      );
+      const response = await fetch(endpoints.queryDataset(id), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: textToSend,
+          context: conversationContext,
+        }),
+      });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          result.detail || "Unable to analyze your question."
-        );
+        throw new Error(result.detail || "Unable to analyze your question.");
       }
 
-      setAnswer(result.answer);
-      setChart(result.chart || null); 
+      // Track context for follow-up questions
+      if (result.plan) {
+        setConversationContext((prev) => ({
+          ...prev,
+          target_column: result.plan.target_column || prev.target_column,
+          group_column: result.plan.group_column || prev.group_column,
+          intent: result.plan.intent,
+        }));
+      }
+
+      const aiMsg = {
+        id: (Date.now() + 1).toString(),
+        sender: "ai",
+        text: result.answer,
+        chart: result.chart || null,
+        explanation: result.explanation || null,
+        suggestedFollowUps: result.suggested_follow_ups || [],
+      };
+
+      setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
-      setAnswer(err.message || "Something went wrong.");
+      const errorMsg = {
+        id: (Date.now() + 1).toString(),
+        sender: "ai",
+        text: err.message || "An unexpected error occurred during analysis.",
+        isError: true,
+      };
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setAsking(false);
     }
-};
-
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <header className="flex h-16 items-center border-b border-slate-200 bg-white px-6">
         <button
-          onClick={() => {
-            window.location.href = "/app";
-          }}
+          onClick={() => navigate("/app")}
           className="flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-900"
         >
           <ArrowLeft size={16} />
@@ -116,7 +157,6 @@ function DatasetWorkspace() {
 
         <div className="ml-6">
           <p className="text-xs text-slate-400">Dataset</p>
-
           <h1 className="text-sm font-semibold text-slate-900">
             {fileName}
           </h1>
@@ -126,113 +166,67 @@ function DatasetWorkspace() {
       <main className="p-6 lg:p-8">
         <div className="mx-auto max-w-7xl">
 
-          {/* Dataset information */}
+          {/* Dataset Metrics */}
           {!loading && !error && (
-            <div className="mb-6 grid gap-4 sm:grid-cols-2">
+            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-slate-500">
-                    Rows
-                  </p>
-
+                  <p className="text-xs font-medium text-slate-500">Rows</p>
                   <Database size={17} className="text-slate-400" />
                 </div>
-
                 <p className="mt-3 text-2xl font-bold text-slate-900">
                   {totalRows.toLocaleString()}
                 </p>
+                <p className="mt-1 text-xs text-slate-400">Total records</p>
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-slate-500">
-                    Columns
-                  </p>
-
+                  <p className="text-xs font-medium text-slate-500">Columns</p>
                   <Table2 size={17} className="text-slate-400" />
                 </div>
-
                 <p className="mt-3 text-2xl font-bold text-slate-900">
                   {columns.length}
                 </p>
+                <p className="mt-1 text-xs text-slate-400">Attributes available</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-500">Quality Score</p>
+                  <Sparkles size={17} className="text-emerald-500" />
+                </div>
+                <p className="mt-3 text-2xl font-bold text-emerald-600">
+                  {profile?.quality_score ?? 100}/100
+                </p>
+                <p className="mt-1 text-xs text-slate-400">Completeness & integrity</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-500">Missing Cells</p>
+                  <Info size={17} className="text-slate-400" />
+                </div>
+                <p className="mt-3 text-2xl font-bold text-slate-900">
+                  {profile?.missing_cells?.toLocaleString() ?? 0}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">Across all columns</p>
               </div>
             </div>
-          )} 
+          )}
 
-          {!loading && !error && profile && (
-            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <p className="text-xs font-medium text-slate-500">
-                  Missing cells
-                </p>
-
-                <p className="mt-3 text-2xl font-bold text-slate-900">
-                  {profile.missing_cells.toLocaleString()}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-400">
-                  Across all columns
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <p className="text-xs font-medium text-slate-500">
-                  Duplicate rows
-                </p>
-
-                <p className="mt-3 text-2xl font-bold text-slate-900">
-                  {profile.duplicate_rows.toLocaleString()}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-400">
-                  Duplicate records
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <p className="text-xs font-medium text-slate-500">
-                  Numeric columns
-                </p>
-
-                <p className="mt-3 text-2xl font-bold text-slate-900">
-                  {profile.numeric_columns.length}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-400">
-                  Suitable for statistics
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <p className="text-xs font-medium text-slate-500">
-                  Categorical columns
-                </p>
-
-                <p className="mt-3 text-2xl font-bold text-slate-900">
-                  {profile.categorical_columns.length}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-400">
-                  Suitable for grouping
-                </p>
-              </div>
-
-            </div>
-)}
-
-          <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+          {/* Main Grid: Data Preview & AI Conversational Analyst */}
+          <div className="grid gap-6 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_460px]">
 
             {/* Dataset preview */}
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white flex flex-col">
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-900">
                     Dataset preview
                   </h2>
-
                   <p className="mt-1 text-xs text-slate-400">
-                    First 10 rows of your dataset
+                    First 10 sample rows
                   </p>
                 </div>
 
@@ -250,13 +244,11 @@ function DatasetWorkspace() {
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                       <Table2 size={21} />
                     </div>
-
                     <h3 className="mt-4 text-sm font-semibold text-slate-900">
-                      Analyzing your dataset...
+                      Analyzing dataset...
                     </h3>
-
                     <p className="mt-2 text-xs text-slate-400">
-                      Preparing your data for analysis.
+                      Reading schema and computing data profile.
                     </p>
                   </div>
                 </div>
@@ -265,15 +257,10 @@ function DatasetWorkspace() {
               {error && (
                 <div className="flex min-h-96 items-center justify-center p-8">
                   <div className="text-center">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-red-500">
-                      <Table2 size={21} />
-                    </div>
-
-                    <h3 className="mt-4 text-sm font-semibold text-slate-900">
+                    <h3 className="text-sm font-semibold text-red-600">
                       Unable to load dataset
                     </h3>
-
-                    <p className="mt-2 max-w-sm text-xs leading-5 text-red-500">
+                    <p className="mt-2 max-w-sm text-xs leading-5 text-slate-500">
                       {error}
                     </p>
                   </div>
@@ -281,7 +268,7 @@ function DatasetWorkspace() {
               )}
 
               {!loading && !error && (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto flex-1">
                   <table className="w-full min-w-max text-left text-xs">
                     <thead className="bg-slate-50">
                       <tr>
@@ -300,7 +287,7 @@ function DatasetWorkspace() {
                       {data.slice(0, 10).map((row, rowIndex) => (
                         <tr
                           key={rowIndex}
-                          className="border-b border-slate-100 last:border-0"
+                          className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition"
                         >
                           {columns.map((column) => (
                             <td
@@ -318,78 +305,142 @@ function DatasetWorkspace() {
               )}
             </section>
 
-            {/* AI Panel */}
-            <section className="flex min-h-96 flex-col rounded-2xl border border-slate-200 bg-white">
+            {/* AI Conversational Analyst Panel */}
+            <section className="flex h-[680px] flex-col rounded-2xl border border-slate-200 bg-white shadow-xs">
+              {/* Header */}
               <div className="border-b border-slate-200 px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
-                    <MessageSquare size={15} />
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
+                    <Bot size={17} />
                   </div>
-
                   <div>
                     <h2 className="text-sm font-semibold text-slate-900">
-                      Ask DataLens AI
+                      DataLens AI Analyst
                     </h2>
-
                     <p className="text-xs text-slate-400">
-                      Ask anything about your dataset
+                      Natural language reasoning & visualization
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex flex-1 items-center justify-center p-6">
-                <div className="text-center">
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 text-slate-400">
-                    <BarChart3 size={18} />
+              {/* Chat Thread */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex gap-3 ${
+                      msg.sender === "user" ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    {msg.sender === "ai" && (
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 mt-0.5">
+                        <Sparkles size={14} />
+                      </div>
+                    )}
+
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-5 ${
+                        msg.sender === "user"
+                          ? "bg-blue-600 text-white font-medium"
+                          : msg.isError
+                          ? "bg-red-50 text-red-600 border border-red-100"
+                          : "bg-slate-100/90 text-slate-700 border border-slate-200/60"
+                      }`}
+                    >
+                      <p className="whitespace-pre-line">{msg.text}</p>
+
+                      {/* Explanation Callout */}
+                      {msg.explanation && (
+                        <div className="mt-2.5 pt-2 border-t border-slate-200/70 text-[11px] text-slate-500 flex items-start gap-1.5">
+                          <Info size={13} className="shrink-0 mt-0.5 text-blue-500" />
+                          <span>{msg.explanation}</span>
+                        </div>
+                      )}
+
+                      {/* Render Interactive Chart */}
+                      {msg.chart && (
+                        <div className="mt-3">
+                          <AnalysisChart chart={msg.chart} />
+                        </div>
+                      )}
+
+                      {/* Suggested Follow-up chips */}
+                      {msg.suggestedFollowUps && msg.suggestedFollowUps.length > 0 && (
+                        <div className="mt-3 pt-2.5 border-t border-slate-200/60">
+                          <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 mb-1.5">
+                            <Lightbulb size={12} className="text-amber-500" />
+                            <span>Suggested follow-ups:</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {msg.suggestedFollowUps.map((prompt, i) => (
+                              <button
+                                key={i}
+                                onClick={() => handleAskQuestion(prompt)}
+                                disabled={asking}
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/50 transition disabled:opacity-50"
+                              >
+                                {prompt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {msg.sender === "user" && (
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600 mt-0.5">
+                        <User size={14} />
+                      </div>
+                    )}
                   </div>
+                ))}
 
-                  <p className="mt-3 text-sm font-medium text-slate-700">
-                    Dataset ready
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5 text-slate-400">
-                    Your data is ready for AI analysis.
-                  </p>
-                </div>
+                {/* Loading indicator */}
+                {asking && (
+                  <div className="flex gap-3 items-center">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                      <Sparkles size={14} className="animate-spin" />
+                    </div>
+                    <div className="rounded-2xl bg-slate-100 px-4 py-2.5 text-xs text-slate-500 flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      <span>Analyzing dataset & preparing visualization...</span>
+                    </div>
+                  </div>
+                )}
+                <div ref={chatBottomRef} />
               </div>
 
-              <div className="border-t border-slate-200 p-4">
-                {answer && (
-                  <div className="mb-3 rounded-lg bg-slate-50 px-4 py-3">
-                    <p className="text-xs leading-5 text-slate-600">
-                      {answer}
-                    </p>
-                  </div>
-                )} 
-
-                <AnalysisChart chart={chart} /> 
-
-                <div className="flex gap-2">
+              {/* Input Area */}
+              <div className="border-t border-slate-200 p-3 bg-white rounded-b-2xl">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAskQuestion();
+                  }}
+                  className="flex gap-2"
+                >
                   <input
                     type="text"
                     value={question}
                     onChange={(event) => setQuestion(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        handleAskQuestion();
-                      }
-                    }}
-                    placeholder="Ask a question about your data..."
+                    placeholder="Ask anything about your data..."
                     disabled={asking}
-                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-4 py-3 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
                   />
 
                   <button
-                    onClick={handleAskQuestion}
+                    type="submit"
                     disabled={!question.trim() || asking}
-                    className="rounded-lg bg-blue-600 px-4 py-3 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-xs transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Send message"
                   >
-                    {asking ? "..." : "Ask"}
+                    <Send size={15} />
                   </button>
-                </div>
+                </form>
               </div>
             </section>
+
           </div>
         </div>
       </main>

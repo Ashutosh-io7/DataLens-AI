@@ -1,12 +1,14 @@
-import { useRef, useState } from "react"; 
+import { useEffect, useRef, useState } from "react"; 
 import { useNavigate } from "react-router-dom";
 import {
+  ArrowRight,
   BarChart3,
   Bell,
   Database,
   FileSpreadsheet,
   FileUp,
   Plus,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -20,6 +22,8 @@ function AppShell() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false); 
+  const [recentDatasets, setRecentDatasets] = useState([]);
+  const [loadingDatasets, setLoadingDatasets] = useState(true); 
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -81,7 +85,7 @@ function AppShell() {
         JSON.stringify(result)
       );
 
-      window.location.href = `/app/datasets/${result.dataset_id}`;
+      navigate(`/app/datasets/${result.dataset_id}`);
     } catch (err) {
       setError(
         err.message || "Unable to upload dataset."
@@ -89,7 +93,42 @@ function AppShell() {
     } finally {
       setUploading(false);
     }
-};
+  };
+
+  const fetchDatasets = async () => {
+    try {
+      setLoadingDatasets(true);
+      const res = await fetch(endpoints.datasets);
+      if (res.ok) {
+        const data = await res.json();
+        setRecentDatasets(data.datasets || []);
+      }
+    } catch {
+      // Keep empty if network issue
+    } finally {
+      setLoadingDatasets(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDatasets();
+  }, []);
+
+  const handleDeleteDataset = async (datasetId, e) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this dataset?")) return;
+
+    try {
+      const res = await fetch(endpoints.deleteDataset(datasetId), {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setRecentDatasets((prev) => prev.filter((d) => d.dataset_id !== datasetId));
+      }
+    } catch (err) {
+      alert("Failed to delete dataset.");
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -233,33 +272,33 @@ function AppShell() {
                 </div>
 
                 <p className="mt-3 text-2xl font-bold text-slate-900">
-                  {selectedFile ? "1" : "0"}
+                  {recentDatasets.length}
                 </p>
 
                 <p className="mt-1 text-xs text-slate-400">
-                  {selectedFile ? "Dataset ready" : "No datasets yet"}
+                  {recentDatasets.length === 1 ? "1 saved dataset" : `${recentDatasets.length} saved datasets`}
                 </p>
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-slate-500">
-                    Analyses
+                    Storage Engine
                   </p>
                   <BarChart3 size={17} className="text-slate-400" />
                 </div>
 
-                <p className="mt-3 text-2xl font-bold text-slate-900">0</p>
+                <p className="mt-3 text-2xl font-bold text-slate-900">PostgreSQL</p>
 
                 <p className="mt-1 text-xs text-slate-400">
-                  No analyses yet
+                  Connected & sync ready
                 </p>
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-slate-500">
-                    Conversations
+                    Analysis Engine
                   </p>
                   <FileSpreadsheet
                     size={17}
@@ -267,38 +306,51 @@ function AppShell() {
                   />
                 </div>
 
-                <p className="mt-3 text-2xl font-bold text-slate-900">0</p>
+                <p className="mt-3 text-2xl font-bold text-slate-900">Active</p>
 
                 <p className="mt-1 text-xs text-slate-400">
-                  No conversations yet
+                  Deterministic Pandas + Heuristics
                 </p>
               </div>
             </div>
 
             {/* Recent datasets */}
             <section className="mt-8">
-              <h3 className="text-base font-semibold text-slate-900">
-                Recent datasets
-              </h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Recent datasets
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Your saved datasets in PostgreSQL and local storage.
+                  </p>
+                </div>
 
-              <p className="mt-1 text-xs text-slate-400">
-                Your recently uploaded files will appear here.
-              </p>
+                {recentDatasets.length > 0 && (
+                  <button
+                    onClick={fetchDatasets}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    Refresh
+                  </button>
+                )}
+              </div>
 
-              {selectedFile ? (
-                <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5">
+              {/* Upload Action Card if a file is currently selected */}
+              {selectedFile && (
+                <div className="mt-4 flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/50 p-5 shadow-xs">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white">
                       <FileSpreadsheet size={18} />
                     </div>
 
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">
+                      <p className="text-sm font-semibold text-slate-900">
                         {selectedFile.name}
                       </p>
 
-                      <p className="mt-1 text-xs text-slate-400">
-                        Ready for analysis
+                      <p className="mt-1 text-xs text-blue-600 font-medium">
+                        Ready to process into PostgreSQL
                       </p>
                     </div>
                   </div>
@@ -310,6 +362,67 @@ function AppShell() {
                   >
                     {uploading ? "Processing..." : "Start analyzing"}
                   </button>
+                </div>
+              )}
+
+              {/* Saved Datasets list */}
+              {loadingDatasets ? (
+                <div className="mt-4 flex min-h-32 items-center justify-center rounded-xl border border-slate-200 bg-white">
+                  <p className="text-xs text-slate-400">Loading datasets...</p>
+                </div>
+              ) : recentDatasets.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {recentDatasets.map((ds) => (
+                    <div
+                      key={ds.dataset_id}
+                      onClick={() => navigate(`/app/datasets/${ds.dataset_id}`)}
+                      className="group flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-300 hover:shadow-xs"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition">
+                          <FileSpreadsheet size={18} />
+                        </div>
+
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition">
+                            {ds.filename}
+                          </p>
+
+                          <div className="mt-1 flex items-center gap-3 text-xs text-slate-400">
+                            <span>{ds.rows?.toLocaleString() ?? 0} rows</span>
+                            <span>•</span>
+                            <span>{ds.columns ?? 0} columns</span>
+                            {ds.quality_score !== null && ds.quality_score !== undefined && (
+                              <>
+                                <span>•</span>
+                                <span className="font-medium text-emerald-600">Score: {ds.quality_score}/100</span>
+                              </>
+                            )}
+                            {ds.created_at && (
+                              <>
+                                <span>•</span>
+                                <span>{new Date(ds.created_at).toLocaleDateString()}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => handleDeleteDataset(ds.dataset_id, e)}
+                          className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 transition"
+                          title="Delete dataset"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition">
+                          <ArrowRight size={16} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="mt-4 flex min-h-40 items-center justify-center rounded-xl border border-slate-200 bg-white">
@@ -323,7 +436,7 @@ function AppShell() {
                     </p>
 
                     <p className="mt-1 text-xs text-slate-400">
-                      Upload your first dataset to get started.
+                      Upload your first dataset above to get started.
                     </p>
                   </div>
                 </div>

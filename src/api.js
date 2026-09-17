@@ -10,4 +10,5 @@ export const endpoints = {
   uploadDataset:   `${API_BASE}/api/datasets/upload`,
   getDataset:      (id) => `${API_BASE}/api/datasets/${id}`,
   queryDataset:    (id) => `${API_BASE}/api/datasets/${id}/query`,
+  deleteDataset:   (id) => `${API_BASE}/api/datasets/${id}`,
 };
