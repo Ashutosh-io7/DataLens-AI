@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import math
 from typing import Any
@@ -250,7 +250,15 @@ def execute_plan(plan: dict[str, Any], df: pd.DataFrame, question: str) -> dict[
         target = plan.get("target_column")
         op = plan.get("operation", "mean")
         if target in df.columns and pd.api.types.is_numeric_dtype(df[target]):
-            val = _safe_number(getattr(df[target].dropna(), op)())
+            non_null = df[target].dropna()
+            if non_null.empty:
+                return {
+                    "answer": f"Column {target} has no non-empty numeric values to calculate from.",
+                    "analysis_type": "aggregation_error",
+                    "explanation": f"'{target}' is entirely empty after removing missing values.",
+                    "suggested_follow_ups": ["Show missing values breakdown", "What columns are in this dataset?"],
+                }
+            val = _safe_number(getattr(non_null, op)())
             labels = {
                 "mean": "average",
                 "sum": "sum (total)",
