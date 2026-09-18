@@ -137,6 +137,8 @@ function DatasetWorkspace() {
         chart: result.chart || null,
         explanation: result.explanation || null,
         suggestedFollowUps: result.suggested_follow_ups || [],
+        metrics: result.metrics || null,
+        analysisType: result.analysis_type || null,
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -374,6 +376,35 @@ function DatasetWorkspace() {
                       {msg.chart && (
                         <div className="mt-3">
                           <AnalysisChart chart={msg.chart} />
+                        </div>
+                      )} 
+
+                      {/* ML Model Metrics */}
+                      {msg.analysisType === "machine_learning" && msg.metrics && (
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          {msg.metrics.task === "classification" ? (
+                            <>
+                              <div className="rounded-lg bg-white border border-slate-200/70 px-3 py-2">
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400">Accuracy</p>
+                                <p className="text-sm font-semibold text-slate-800">{msg.metrics.accuracy}%</p>
+                              </div>
+                              <div className="rounded-lg bg-white border border-slate-200/70 px-3 py-2">
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400">F1 Score</p>
+                                <p className="text-sm font-semibold text-slate-800">{msg.metrics.f1_score}</p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="rounded-lg bg-white border border-slate-200/70 px-3 py-2">
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400">R² Score</p>
+                                <p className="text-sm font-semibold text-slate-800">{msg.metrics.r2_score}</p>
+                              </div>
+                              <div className="rounded-lg bg-white border border-slate-200/70 px-3 py-2">
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400">RMSE</p>
+                                <p className="text-sm font-semibold text-slate-800">{msg.metrics.rmse}</p>
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
 
