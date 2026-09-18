@@ -15,6 +15,18 @@ import {
 import AnalysisChart from "./AnalysisChart"; 
 import { endpoints } from "../api"; 
 
+// Turns "**bold**" segments into real bold text for chat messages
+function renderFormattedText(text) {
+  if (!text) return null;
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 function DatasetWorkspace() {
   const [fileName, setFileName] = useState("Dataset");
   const [data, setData] = useState([]);
@@ -348,7 +360,7 @@ function DatasetWorkspace() {
                           : "bg-slate-100/90 text-slate-700 border border-slate-200/60"
                       }`}
                     >
-                      <p className="whitespace-pre-line">{msg.text}</p>
+                      <p className="whitespace-pre-line">{renderFormattedText(msg.text)}</p> 
 
                       {/* Explanation Callout */}
                       {msg.explanation && (
