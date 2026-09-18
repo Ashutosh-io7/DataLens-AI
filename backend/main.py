@@ -15,7 +15,10 @@ register_exception_handlers(app)
 from app.core.database import Base, engine
 from app.models.dataset import Dataset
 
-Base.metadata.create_all(bind=engine) 
+try : 
+    Base.metadata.create_all(bind=engine) 
+except Exception as exc : 
+    print(f"⚠️  Could not connect to PostgreSQL — continuing with file-based storage only. ({exc})")
 
 app.add_middleware(
     CORSMiddleware,
