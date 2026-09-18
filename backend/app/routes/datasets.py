@@ -46,11 +46,15 @@ async def upload_dataset(file: UploadFile = File(...)):
             content=content,
         )
 
+        profile = profile_dataset(df)
+
         metadata = save_dataset(
             filename=file.filename,
             content=content,
             rows = len(df),
-            columns = len(df.columns), 
+            columns = len(df.columns),
+            quality_score = profile.get("quality_score"),
+            profile = profile,
         )
 
         preview = (
@@ -63,8 +67,6 @@ async def upload_dataset(file: UploadFile = File(...)):
             column: str(dtype)
             for column, dtype in df.dtypes.items()
         }
-
-        profile = profile_dataset(df)
 
         return {
             "dataset_id": metadata['dataset_id'],
