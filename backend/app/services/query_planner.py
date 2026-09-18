@@ -84,6 +84,21 @@ def plan_query(
             "columns": num_matched if len(num_matched) >= 2 else numeric_cols[:5],
         }
 
+    # 5b. Machine Learning / Feature Importance / Prediction Intent
+    ml_triggers = ["predict", "train model", "feature importance", "which factors influence", "what drives", "forecast", "influencing factor", "shap"]
+    if any(trigger in norm_q for trigger in ml_triggers):
+        target = match_column(question, df)
+        # If target column not explicitly named, choose a logical target
+        if not target and context and context.get("target_column") in df.columns:
+            target = context["target_column"]
+        if not target:
+            # Pick first categorical or last numeric column as candidate target
+            target = categorical_cols[0] if categorical_cols else (numeric_cols[-1] if numeric_cols else df.columns[-1])
+        return {
+            "intent": "machine_learning",
+            "target_column": target,
+        }
+
     # 6. Extract top / bottom N limit
     n = 10
     top_match = re.search(r"\btop\s+(\d+)\b", norm_q)

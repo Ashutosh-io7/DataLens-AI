@@ -15,6 +15,7 @@ from app.services.visualization_service import (
     value_counts_chart,
 )
 from app.services.query_planner import plan_query
+from app.services.ml_service import train_and_explain_model
 
 
 def _safe_number(value: Any) -> int | float | None:
@@ -325,6 +326,48 @@ def execute_plan(plan: dict[str, Any], df: pd.DataFrame, question: str) -> dict[
                         f"Distribution of {secondary}",
                     ],
                 }
+
+    # 11. Machine Learning & SHAP Feature Importance
+    if intent == "machine_learning":
+        target = plan.get("target_column")
+        try:
+            ml_res = train_and_explain_model(df, target_col=target)
+            task_type = ml_res["task"]
+            metrics = ml_res["metrics"]
+            top_feats = ml_res["top_features"]
+            lead_feat = top_feats[0]["feature"] if top_feats else "N/A"
+
+            if task_type == "classification":
+                metric_str = f"accuracy: **{metrics.get('accuracy')}%**, weighted F1: **{metrics.get('f1_score')}**"
+            else:
+                metric_str = f"R² score: **{metrics.get('r2_score')}**, RMSE: **{metrics.get('rmse')}**"
+
+            return {
+                "answer": (
+                    f"Trained an **XGBoost {task_type.capitalize()} Model** to predict `{target}` ({metric_str}).\n\n"
+                    f"**SHAP Game-Theoretic Analysis** reveals that `{lead_feat}` is the single most influential driver on prediction outcomes."
+                ),
+                "analysis_type": "machine_learning",
+                "target_column": target,
+                "metrics": metrics,
+                "top_features": top_feats,
+                "chart": ml_res["shap_chart"],
+                "explanation": (
+                    f"Engineered XGBoost gradient-boosted decision trees over {len(ml_res['features_used'])} features. "
+                    "Computed TreeExplainer SHAP values to calculate exact, un-biased feature importance."
+                ),
+                "suggested_follow_ups": [
+                    f"What is the distribution of {target}?",
+                    f"Correlation between {lead_feat} and other columns",
+                ],
+            }
+        except Exception as e:
+            return {
+                "answer": f"Unable to train model for `{target}`: {str(e)}",
+                "analysis_type": "machine_learning_error",
+                "explanation": "Target column could not be encoded or insufficient features were available.",
+                "suggested_follow_ups": ["How many rows in dataset?", "Show columns list"],
+            }
 
     # Fallback when intent is unclear or required columns are missing
     return {
