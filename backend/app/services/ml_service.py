@@ -62,8 +62,24 @@ def train_and_explain_model(
 
     label_encoder = None
     if is_classification:
+        # Drop categories that are too rare to appear in both the train
+        # and test split (a category with only 1 example can end up
+        # entirely on one side, which breaks XGBoost's class validation).
+        class_counts = y.astype(str).value_counts()
+        rare_classes = class_counts[class_counts < 2].index
+        if len(rare_classes) > 0:
+            keep_mask = ~y.astype(str).isin(rare_classes)
+            y = y[keep_mask]
+            df_features = df_features.loc[y.index]
+
+        if y.nunique() < 2:
+            raise ValueError(
+                f"'{target_col}' doesn't have enough variety (at least 2 "
+                "categories with 2+ examples each) to train a model."
+            )
+
         label_encoder = LabelEncoder()
-        y = label_encoder.fit_transform(y.astype(str))
+        y = pd.Series(label_encoder.fit_transform(y.astype(str)), index=y.index)
         num_classes = len(label_encoder.classes_)
     else:
         y = pd.to_numeric(y, errors="coerce").fillna(y.median())
@@ -79,9 +95,11 @@ def train_and_explain_model(
             le = LabelEncoder()
             processed_X[col] = le.fit_transform(s.astype(str).fillna("missing"))
 
-    # Train / Test split
+    # Train / Test split (stratify keeps class proportions balanced
+    # across train and test when this is a classification task)
+    stratify_arg = y if is_classification else None
     X_train, X_test, y_train, y_test = train_test_split(
-        processed_X, y, test_size=0.2, random_state=42
+        processed_X, y, test_size=0.2, random_state=42, stratify=stratify_arg
     )
 
     # 4. Train XGBoost Model
