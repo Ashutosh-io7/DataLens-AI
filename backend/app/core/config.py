@@ -16,7 +16,10 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
 
     data_dir: Path = BACKEND_DIR / "data"
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/datalens_ai"
+    database_url: str = "postgresql://postgres:postgres@localhost:5432/datalens_ai" 
+
+    google_api_key: str = "" 
+    llm_model: str = "gemini-2.0-flash"
 
     @property
     def upload_dir(self) -> Path:
