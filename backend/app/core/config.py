@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/datalens_ai" 
 
     google_api_key: str = "" 
-    llm_model: str = "gemini-2.0-flash"
+    llm_model: str = "gemini-3.6-flash" 
 
     @property
     def upload_dir(self) -> Path:
