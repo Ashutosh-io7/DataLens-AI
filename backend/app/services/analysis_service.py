@@ -15,7 +15,8 @@ from app.services.visualization_service import (
     value_counts_chart,
 )
 from app.services.query_planner import plan_query
-from app.services.ml_service import train_and_explain_model
+from app.services.ml_service import train_and_explain_model 
+from app.services.llm_service import get_llm_plan 
 
 
 def _safe_number(value: Any) -> int | float | None:
@@ -398,7 +399,24 @@ def analyze_question(
     question: str,
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    plan = plan_query(question, df, context=context)
+    plan: dict[str, Any] | None = None
+    planned_by = "rule_based"
+
+    try:
+        plan = get_llm_plan(question, df)
+        if plan.get("intent") and plan["intent"] != "unsupported":
+            planned_by = "llm"
+        else:
+            plan = None  # let the rule-based planner have a try instead
+    except Exception as exc:
+        print(f"LLM planner unavailable, falling back to rule-based planner: {exc}")
+        plan = None
+
+    if plan is None:
+        plan = plan_query(question, df, context=context)
+        planned_by = "rule_based"
+
     result = execute_plan(plan, df, question)
     result["plan"] = plan
+    result["planned_by"] = planned_by
     return result
