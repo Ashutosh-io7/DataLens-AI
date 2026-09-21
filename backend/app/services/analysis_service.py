@@ -205,11 +205,15 @@ def execute_plan(plan: dict[str, Any], df: pd.DataFrame, question: str) -> dict[
         if grp_col in df.columns:
             if num_col and num_col in df.columns and pd.api.types.is_numeric_dtype(df[num_col]):
                 # Grouped numeric calculation
+                # Sort so the "top result" actually matches what was asked:
+                # op="min" means the person wants the smallest value first,
+                # every other operation (max/mean/sum/median) shows the largest first.
+                sort_ascending = op == "min"
                 grouped = (
                     df.groupby(grp_col, observed=True)[num_col]
                     .agg(op)
                     .dropna()
-                    .sort_values(ascending=False)
+                    .sort_values(ascending=sort_ascending) 
                     .head(n)
                 )
                 values = [{"label": str(k), "value": _safe_number(v)} for k, v in grouped.items()]
