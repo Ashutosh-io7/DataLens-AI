@@ -128,6 +128,7 @@ def plan_query(
         "maximum": "max",
         "max": "max",
         "highest": "max",
+        "most": "max", 
         "minimum": "min",
         "min": "min",
         "lowest": "min",

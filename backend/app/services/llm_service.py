@@ -26,10 +26,19 @@ class QueryPlan(BaseModel) :
         "filter_count",
         "unsupported",
     ] = Field(description="Which analysis operation best answers the question.")
-    target_column: Optional[str] = Field(default=None, description="Main column to analyze — must be an exact column name from the schema.")
-    group_column: Optional[str] = Field(default=None, description="Column to group by, for grouped_aggregation.")
-    columns: Optional[list[str]] = Field(default=None, description="Two or more numeric columns, for correlation.")
-    operation: Optional[Literal["mean", "sum", "median", "max", "min", "std"]] = Field(default=None, description="Aggregation to apply.")
+    target_column: Optional[str] = Field(default=None, description="Main column to analyze — must be an exact column name from the schema.") 
+    group_column: Optional[str] = Field(default=None, description=(
+        "Column to group by. REQUIRED whenever the question is really asking "
+        "'which <category> has the most/least/highest/lowest <metric>', or asks "
+        "for a breakdown 'by/per <category>' — even if the word used in the "
+        "question (e.g. 'car', 'product', 'city') isn't an exact column name. "
+        "Pick whichever categorical column in the schema represents that entity."
+    ))
+    columns: Optional[list[str]] = Field(default=None, description="Two or more numeric columns, for correlation.") 
+    operation: Optional[Literal["mean", "sum", "median", "max", "min", "std"]] = Field(default=None, description=(
+        "Aggregation to apply. Use 'max' for 'most/highest/top/best'. Use 'min' "
+        "for 'least/lowest/bottom/worst'. Use 'mean' for 'average'. Use 'sum' for 'total'."
+    ))
     n: Optional[int] = Field(default=10, description="How many results to return, for ranked/top-N questions.")
     ascending: Optional[bool] = Field(default=False, description="True for 'bottom/lowest' questions instead of 'top/most'.")
     filter_value: Optional[str] = Field(default=None, description="The exact category value being filtered on, for filter_count.") 
@@ -66,6 +75,21 @@ names or exact values from the schema above — never invent or guess spelling.
 use intent "unsupported".
 - Use "machine_learning" only when the user is asking what drives/predicts/influences \
 a column — not for simple averages or counts.
+
+Choosing between "aggregation" and "grouped_aggregation" (the most common mistake — read carefully):
+- Use "aggregation" ONLY for a single summary number across the WHOLE column, \
+with no category involved. Example: "What is the average selling price?" -> \
+intent=aggregation, target_column=Selling_Price, operation=mean.
+- Use "grouped_aggregation" whenever the answer needs to name a specific row \
+or category — including "which <thing> has the most/least/highest <metric>", \
+"top N <category> by <metric>", or "<metric> by <category>". target_column is \
+the numeric metric, group_column is the categorical column identifying <thing> \
+(infer it from the schema even if the question's wording doesn't match the \
+column name exactly), and operation is max/min/mean based on the wording.
+  Example: "Which car makes the most selling price?" -> intent=grouped_aggregation, \
+group_column=Car_Name, target_column=Selling_Price, operation=max.
+  Example: "average revenue by region" -> intent=grouped_aggregation, \
+group_column=Region, target_column=Revenue, operation=mean.
 """ 
 
 def get_llm_plan(question: str, df: pd.DataFrame) -> dict: 
