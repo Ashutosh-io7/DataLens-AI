@@ -106,6 +106,8 @@ def get_llm_plan(question: str, df: pd.DataFrame) -> dict:
         model=settings.llm_model,
         google_api_key=settings.google_api_key,
         temperature=0, 
+        timeout=15,
+        max_retries=1, 
     )
 
     structured_llm = llm.with_structured_output(QueryPlan) 

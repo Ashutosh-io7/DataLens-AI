@@ -102,6 +102,9 @@ function DatasetWorkspace() {
     setQuestion("");
     setAsking(true);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s safety net
+
     try {
       const response = await fetch(endpoints.queryDataset(id), {
         method: "POST",
@@ -112,8 +115,10 @@ function DatasetWorkspace() {
           question: textToSend,
           context: conversationContext,
         }),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
       const result = await response.json();
 
       if (!response.ok) {
@@ -143,10 +148,14 @@ function DatasetWorkspace() {
 
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
+      clearTimeout(timeoutId);
+      const isTimeout = err.name === "AbortError";
       const errorMsg = {
         id: (Date.now() + 1).toString(),
         sender: "ai",
-        text: err.message || "An unexpected error occurred during analysis.",
+        text: isTimeout
+          ? "That took too long to respond — please try asking again."
+          : err.message || "An unexpected error occurred during analysis.",
         isError: true,
       };
       setMessages((prev) => [...prev, errorMsg]);
