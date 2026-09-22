@@ -76,6 +76,10 @@ names or exact values from the schema above — never invent or guess spelling.
 use intent "unsupported".
 - Use "machine_learning" only when the user is asking what drives/predicts/influences \
 a column — not for simple averages or counts.
+- Match columns by MEANING, not just literal substring. A question can refer to \
+a column using a related word instead of its exact name — e.g. "driven" or \
+"mileage" both mean a column like 'Kms_Driven'; "priced" or "cost" could mean \
+'Selling_Price'. Think about what real-world concept each column represents.
 
 Choosing between "aggregation" and "grouped_aggregation" (the most common mistake — read carefully):
 - Use "aggregation" ONLY for a single summary number across the WHOLE column, \
@@ -89,8 +93,10 @@ the numeric metric, group_column is the categorical column identifying <thing> \
 column name exactly), and operation is max/min/mean based on the wording.
   Example: "Which car makes the most selling price?" -> intent=grouped_aggregation, \
 group_column=Car_Name, target_column=Selling_Price, operation=max.
-  Example: "average revenue by region" -> intent=grouped_aggregation, \
+    Example: "average revenue by region" -> intent=grouped_aggregation, \
 group_column=Region, target_column=Revenue, operation=mean.
+  Example: "Which car is least driven?" -> intent=grouped_aggregation, \
+group_column=Car_Name, target_column=Kms_Driven, operation=min.
 """ 
 
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
@@ -104,7 +110,8 @@ def _call_llm(question: str, df: pd.DataFrame) -> dict:
         model=settings.llm_model,
         google_api_key=settings.google_api_key,
         timeout=15,
-        max_retries=0,  # the hard deadline below is the real safety net
+        max_retries=0,  # the hard deadline below is the real safety net 
+        thinking_budget=2048, 
     )
     structured_llm = llm.with_structured_output(QueryPlan)
 
