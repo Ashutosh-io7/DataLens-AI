@@ -2,6 +2,11 @@ from typing import Any
 from fastapi import APIRouter, File, HTTPException, UploadFile 
 from pydantic import BaseModel 
 from app.services.query_service import answer_question 
+
+from sqlalchemy import text
+from app.core.database import SessionLocal
+from app.core.config import settings
+
 from app.services.dataset_service import (
     delete_dataset,
     get_dataset_metadata,
@@ -183,4 +188,21 @@ def remove_dataset(dataset_id: str):
 def get_datasets() :
     return {
         "datasets" : list_dataset_metadata() 
+    } 
+
+@router.get("/health")
+def health_check():
+    db_status = "disconnected"
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+        db_status = "connected"
+    except Exception:
+        db_status = "disconnected"
+
+    return {
+        "database": db_status,
+        "llm_configured": bool(settings.google_api_key),
+        "llm_model": settings.llm_model,
     }
