@@ -4,6 +4,7 @@ from typing import Literal, Optional
 import pandas as pd 
 from pydantic import BaseModel, Field 
 from langchain_google_genai import ChatGoogleGenerativeAI 
+import concurrent.futures 
 
 from app.core.config import settings 
 
@@ -92,39 +93,32 @@ group_column=Car_Name, target_column=Selling_Price, operation=max.
 group_column=Region, target_column=Revenue, operation=mean.
 """ 
 
-def get_llm_plan(question: str, df: pd.DataFrame) -> dict: 
-    """
-    Asks Gemini to turn a natural-language question into a structured plan.
-    Raises an exception if the API key is missing, the call fails, or the
-    response can't be produced — the caller is expected to catch this and
-    fall back to the rule-based planner.
-    """ 
-    if not settings.google_api_key: 
-        raise RuntimeError("No Gemini API key configured.") 
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
+
+def _call_llm(question: str, df: pd.DataFrame) -> dict:
+    """Does the actual Gemini call. Runs inside a worker thread so it can be
+    forcibly timed out by get_llm_plan() below, no matter what the SDK is
+    doing internally (retries, multi-step tool calling, etc.)."""
     llm = ChatGoogleGenerativeAI(
         model=settings.llm_model,
         google_api_key=settings.google_api_key,
-        temperature=0, 
         timeout=15,
-        max_retries=1, 
+        max_retries=0,  # the hard deadline below is the real safety net
     )
+    structured_llm = llm.with_structured_output(QueryPlan)
 
-    structured_llm = llm.with_structured_output(QueryPlan) 
-
-    system_message = _SYSTEM_PROMPT.format(schema=_describe_schema(df)) 
+    system_message = _SYSTEM_PROMPT.format(schema=_describe_schema(df))
 
     result: QueryPlan = structured_llm.invoke(
         [
             ("system", system_message),
-            ("human", question) 
+            ("human", question),
         ]
-    ) 
+    )
 
-    plan = result.model_dump(exclude_none=True) 
+    plan = result.model_dump(exclude_none=True)
 
-    # Safety net: drop any column name the LLM picked that doesn't actually
-    # exist in this dataset, in case it guessed instead of copying exactly.
     for key in ("target_column", "group_column"):
         if key in plan and plan[key] not in df.columns:
             plan.pop(key)
@@ -132,3 +126,21 @@ def get_llm_plan(question: str, df: pd.DataFrame) -> dict:
         plan["columns"] = [c for c in plan["columns"] if c in df.columns]
 
     return plan
+
+
+def get_llm_plan(question: str, df: pd.DataFrame) -> dict:
+    """
+    Asks Gemini to turn a natural-language question into a structured plan.
+    Enforces a hard 20-second deadline no matter what the Gemini SDK does
+    internally — if it's not done by then, this raises TimeoutError.
+    The caller is expected to catch any exception here and fall back to
+    the rule-based planner.
+    """
+    if not settings.google_api_key:
+        raise RuntimeError("No Gemini API key configured.")
+
+    future = _executor.submit(_call_llm, question, df)
+    try:
+        return future.result(timeout=20)
+    except concurrent.futures.TimeoutError:
+        raise TimeoutError("Gemini did not respond within 20 seconds.")
