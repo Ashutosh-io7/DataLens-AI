@@ -24,6 +24,7 @@ function AppShell() {
   const [uploading, setUploading] = useState(false); 
   const [recentDatasets, setRecentDatasets] = useState([]);
   const [loadingDatasets, setLoadingDatasets] = useState(true); 
+  const [health, setHealth] = useState(null); 
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -111,7 +112,12 @@ function AppShell() {
   };
 
   useEffect(() => {
-    fetchDatasets();
+    fetchDatasets(); 
+
+    fetch(endpoints.health)
+      .then((res) => res.json())
+      .then(setHealth)
+      .catch(() => setHealth({ database: "disconnected", llm_configured: false }));
   }, []);
 
   const handleDeleteDataset = async (datasetId, e) => {
@@ -290,8 +296,12 @@ function AppShell() {
 
                 <p className="mt-3 text-2xl font-bold text-slate-900">PostgreSQL</p>
 
-                <p className="mt-1 text-xs text-slate-400">
-                  Connected & sync ready
+                <p className={`mt-1 text-xs ${health?.database === "connected" ? "text-emerald-500" : "text-amber-500"}`}>
+                  {health === null
+                    ? "Checking status..."
+                    : health.database === "connected"
+                    ? "Connected & sync ready"
+                    : "Disconnected — using local file storage"}
                 </p>
               </div>
 
