@@ -14,6 +14,7 @@ import {
   User,
 } from "lucide-react"; 
 import AnalysisChart from "./AnalysisChart"; 
+import AppSidebar from "./AppSidebar";
 import { endpoints } from "../api"; 
 
 // Turns "**bold**" segments into real bold text for chat messages
@@ -201,29 +202,39 @@ function DatasetWorkspace() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="flex h-16 items-center border-b border-slate-200 bg-white px-6">
-        <button
-          onClick={() => navigate("/app")}
-          className="flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-900"
-        >
-          <ArrowLeft size={16} />
-          Back to datasets
-        </button>
+    <div className="flex min-h-screen bg-slate-50">
+      <AppSidebar activeTab="conversations" />
 
-        <div className="ml-6 h-5 w-px bg-slate-200" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Header */}
+        <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
+          <div className="flex items-center">
+            <button
+              onClick={() => navigate("/app")}
+              className="flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-900 cursor-pointer"
+            >
+              <ArrowLeft size={16} />
+              <span>Back to datasets</span>
+            </button>
 
-        <div className="ml-6">
-          <p className="text-xs text-slate-400">Dataset</p>
-          <h1 className="text-sm font-semibold text-slate-900">
-            {fileName}
-          </h1>
-        </div>
-      </header>
+            <div className="ml-6 h-5 w-px bg-slate-200" />
 
-      <main className="p-6 lg:p-8">
-        <div className="mx-auto max-w-7xl">
+            <div className="ml-6">
+              <p className="text-xs text-slate-400">Dataset Workspace</p>
+              <h1 className="text-sm font-semibold text-slate-900">
+                {fileName}
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="font-medium text-slate-700">Active Session</span>
+          </div>
+        </header>
+
+        <main className="flex-1 p-6 lg:p-8">
+          <div className="mx-auto max-w-7xl">
 
           {/* Dataset Metrics */}
           {!loading && !error && (
@@ -543,6 +554,7 @@ function DatasetWorkspace() {
           </div>
         </div>
       </main>
+      </div>
     </div>
   );
 }
