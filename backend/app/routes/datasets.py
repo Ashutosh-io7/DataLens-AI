@@ -89,6 +89,23 @@ async def upload_dataset(file: UploadFile = File(...)):
         raise InvalidDatasetError(f"Unable to process dataset: {str(exc)}")
 
 
+@router.get("/health")
+def health_check():
+    db_status = "disconnected"
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+        db_status = "connected"
+    except Exception:
+        db_status = "disconnected"
+
+    return {
+        "database": db_status,
+        "llm_configured": bool(settings.google_api_key),
+        "llm_model": settings.llm_model,
+    }
+
 @router.get("/{dataset_id}")
 def get_dataset(dataset_id: str):
     try:
@@ -184,25 +201,7 @@ def remove_dataset(dataset_id: str):
     return {"message": "Dataset successfully deleted.", "dataset_id": dataset_id}
 
 @router.get("")
-
-def get_datasets() :
+def get_datasets():
     return {
-        "datasets" : list_dataset_metadata() 
-    } 
-
-@router.get("/health")
-def health_check():
-    db_status = "disconnected"
-    try:
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
-        db_status = "connected"
-    except Exception:
-        db_status = "disconnected"
-
-    return {
-        "database": db_status,
-        "llm_configured": bool(settings.google_api_key),
-        "llm_model": settings.llm_model,
-    }
+        "datasets": list_dataset_metadata()
+    }
