@@ -1,26 +1,35 @@
-import { ArrowRight, FileUp, MessageSquareText, Sparkles } from "lucide-react";
+import { FileUp, MessageSquareText, Sparkles } from "lucide-react";
 
 const steps = [
   {
     number: "01",
     icon: FileUp,
-    title: "Upload your data",
+    label: "Upload",
+    title: "Drop in your dataset",
     description:
-      "Drop in a CSV or Excel file. DataLens AI understands its structure and prepares it for analysis.",
+      "Upload any CSV or Excel file. DataLens AI instantly profiles every column — detecting types, missing values, outliers, distributions, and data quality.",
+    accent: "bg-blue-50 text-blue-600",
+    border: "border-blue-100",
   },
   {
     number: "02",
     icon: MessageSquareText,
-    title: "Ask questions",
+    label: "Ask",
+    title: "Ask in plain English",
     description:
-      "Ask questions in plain English. No SQL, formulas, or complex dashboards required.",
+      "Type a question like you'd ask a colleague. The LLM query planner understands intent, then runs deterministic Pandas calculations — no hallucinated numbers.",
+    accent: "bg-indigo-50 text-indigo-600",
+    border: "border-indigo-100",
   },
   {
     number: "03",
     icon: Sparkles,
-    title: "Get useful answers",
+    label: "Understand",
+    title: "Get grounded answers",
     description:
-      "Receive clear answers, relevant visualizations, and insights that help you understand what matters.",
+      "Receive accurate answers with matching visualizations, AI-written explanations, and smart follow-up suggestions to explore further.",
+    accent: "bg-violet-50 text-violet-600",
+    border: "border-violet-100",
   },
 ];
 
@@ -28,7 +37,7 @@ function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="border-y border-slate-200/80 bg-white px-6 py-24 lg:px-8"
+      className="bg-white px-6 py-24 lg:px-8 lg:py-32"
     >
       <div className="mx-auto max-w-6xl">
         {/* Section Header */}
@@ -37,63 +46,51 @@ function HowItWorks() {
             How it works
           </p>
 
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            From raw data to clear answers.
+          <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+            From raw data to clear answers
+            <span className="text-blue-600"> in seconds.</span>
           </h2>
 
-          <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">
-            A simple workflow built around conversation, context, and useful
-            analysis.
+          <p className="mt-4 text-base leading-7 text-slate-500 sm:text-lg">
+            A focused three-step workflow — no dashboards, no queries, no configuration.
           </p>
         </div>
 
-        {/* Steps */}
-        <div className="relative mt-14">
-          {/* Connection Line */}
-          <div className="pointer-events-none absolute left-[16%] right-[16%] top-9 hidden h-px bg-slate-200 md:block" />
+        {/* Steps Grid */}
+        <div className="mt-16 grid gap-6 md:grid-cols-3">
+          {steps.map((step) => {
+            const Icon = step.icon;
+            return (
+              <article
+                key={step.number}
+                className={`group relative overflow-hidden rounded-2xl border bg-white p-7 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${step.border}`}
+              >
+                {/* Step number watermark */}
+                <span className="pointer-events-none absolute right-5 top-4 text-6xl font-black text-slate-100 select-none">
+                  {step.number}
+                </span>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            {steps.map((step) => {
-              const Icon = step.icon;
+                {/* Icon */}
+                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${step.accent} shadow-xs`}>
+                  <Icon size={20} />
+                </div>
 
-              return (
-                <article
-                  key={step.number}
-                  className="group relative z-10 rounded-2xl border border-slate-200 bg-slate-50/80 p-7 transition-all duration-200 hover:-translate-y-1 hover:border-blue-100 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50"
-                >
-                  {/* Icon + Number */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-blue-600 shadow-sm ring-1 ring-slate-200/80 transition-colors group-hover:bg-blue-600 group-hover:text-white group-hover:ring-blue-600">
-                      <Icon size={19} />
-                    </div>
+                {/* Label pill */}
+                <span className={`mt-5 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${step.accent}`}>
+                  {step.label}
+                </span>
 
-                    <span className="text-xs font-bold tracking-wider text-slate-300">
-                      {step.number}
-                    </span>
-                  </div>
+                <h3 className="mt-3 text-base font-bold text-slate-900">
+                  {step.title}
+                </h3>
 
-                  {/* Content */}
-                  <h3 className="mt-7 text-lg font-semibold text-slate-900">
-                    {step.title}
-                  </h3>
-
-                  <p className="mt-3 text-sm leading-6 text-slate-600">
-                    {step.description}
-                  </p>
-                </article>
-              );
-            })}
-          </div>
+                <p className="mt-2.5 text-sm leading-6 text-slate-500">
+                  {step.description}
+                </p>
+              </article>
+            );
+          })}
         </div>
-
-        {/* Next Section Link */}
-        <a
-          href="#ai-analysis"
-          className="mt-10 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 transition-colors hover:text-blue-700"
-        >
-          See the analysis experience
-          <ArrowRight size={15} />
-        </a>
       </div>
     </section>
   );
