@@ -30,8 +30,8 @@ function Navbar() {
             How it works
           </a>
 
-          <a href="#pricing" className="transition hover:text-slate-900">
-            Pricing
+          <a href="#ai-analysis" className="transition hover:text-slate-900">
+            AI Analysis
           </a>
         </div>
 
@@ -104,11 +104,11 @@ function Navbar() {
             </a>
 
             <a
-              href="#pricing"
+              href="#ai-analysis"
               onClick={() => setMenuOpen(false)}
               className="rounded-lg px-3 py-3 text-sm font-medium text-slate-600 hover:bg-white hover:text-slate-900"
             >
-              Pricing
+              AI Analysis
             </a>
 
             <div className="mt-3 flex gap-3 border-t border-slate-200 pt-4">

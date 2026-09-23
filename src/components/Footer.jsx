@@ -36,6 +36,13 @@ function Footer() {
           </a>
 
           <a
+            href="#ai-analysis"
+            className="transition hover:text-slate-900"
+          >
+            AI Analysis
+          </a>
+
+          <a
             href="#cta"
             className="transition hover:text-slate-900"
           >

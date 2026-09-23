@@ -1,117 +1,131 @@
-import { ArrowRight, BarChart3, MessageSquareText, Sparkles } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle2, Database, Sparkles, TrendingUp } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function FinalCTA() {
-  return (
-    <section id="cta" className="px-6 py-24 lg:px-8">
-      <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 px-6 py-16 sm:px-10 lg:px-16 lg:py-20">
-        {/* Subtle background grid */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-60"
-          style={{
-            backgroundImage:
-              "linear-gradient(#e2e8f0 1px, transparent 1px), linear-gradient(90deg, #e2e8f0 1px, transparent 1px)",
-            backgroundSize: "48px 48px",
-            maskImage:
-              "linear-gradient(to bottom, transparent, black 25%, black 75%, transparent)",
-          }}
-        />
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
-        <div className="relative grid items-center gap-14 lg:grid-cols-[1fr_0.8fr]">
-          {/* Content */}
+  const handleCtaClick = () => {
+    navigate(isAuthenticated ? "/app" : "/signup");
+  };
+
+  return (
+    <section id="cta" className="px-6 py-24 lg:px-8 lg:py-32">
+      <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50/70 via-indigo-50/40 to-white px-7 py-16 sm:px-12 lg:px-16 lg:py-20 shadow-xl shadow-blue-500/5">
+        {/* Subtle background ambient blur */}
+        <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-blue-200/50 blur-3xl" />
+        <div className="pointer-events-none absolute -left-20 -bottom-20 h-72 w-72 rounded-full bg-indigo-200/40 blur-3xl" />
+
+        <div className="relative grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+          {/* Left: Headline & Actions */}
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm">
-              <Sparkles size={13} />
-              Start with your data
+            <div className="inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-blue-700 shadow-2xs backdrop-blur-xs">
+              <Sparkles size={13} className="text-blue-600" />
+              <span>Instant AI Data Science</span>
             </div>
 
-            <h2 className="mt-6 max-w-xl text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl lg:text-5xl">
+            <h2 className="mt-6 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
               Stop staring at spreadsheets.
-              <span className="text-blue-600"> Start asking questions.</span>
+              <br />
+              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Start asking questions.
+              </span>
             </h2>
 
-            <p className="mt-5 max-w-xl text-base leading-7 text-slate-600">
-              Upload your dataset and let DataLens AI help you discover trends,
-              patterns, and answers in seconds.
+            <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-600">
+              Upload any CSV or Excel file. Uncover correlations, generate predictive
+              XGBoost models, and get clear analytical explanations in seconds.
             </p>
 
-            <button className="group mt-8 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
-              Analyze your data
+            <div className="mt-8 flex flex-col gap-3.5 sm:flex-row sm:items-center">
+              <button
+                onClick={handleCtaClick}
+                className="group inline-flex items-center justify-center gap-2.5 rounded-xl bg-blue-600 px-7 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                <span>{isAuthenticated ? "Go to your workspace" : "Get started for free"}</span>
+                <ArrowRight
+                  size={16}
+                  className="transition-transform group-hover:translate-x-0.5"
+                />
+              </button>
 
-              <ArrowRight
-                size={16}
-                className="transition-transform group-hover:translate-x-0.5"
-              />
-            </button>
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                <span>No credit card required</span>
+              </div>
+            </div>
 
             <p className="mt-5 text-xs font-medium text-slate-400">
-              CSV & Excel supported · No SQL required
+              PostgreSQL persistence · CSV & Excel · Natural language queries
             </p>
           </div>
 
-          {/* Mini Product Visual */}
-          <div className="relative mx-auto w-full max-w-sm">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/50">
-              {/* Question */}
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
-                  <MessageSquareText size={16} />
+          {/* Right: Floating Product Preview Card */}
+          <div className="relative mx-auto w-full max-w-md">
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xl shadow-slate-300/40">
+              {/* Top bar */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white">
+                    <Bot size={14} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-900">DataLens AI</span>
                 </div>
-
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    Ask your data
-                  </p>
-
-                  <p className="mt-1 text-sm font-medium leading-5 text-slate-800">
-                    What are my strongest sales regions?
-                  </p>
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                  <Database size={11} />
+                  <span>Ready</span>
                 </div>
               </div>
 
-              {/* Divider */}
-              <div className="my-5 h-px bg-slate-100" />
+              {/* Sample Question */}
+              <div className="mt-4 rounded-xl bg-slate-50 p-3">
+                <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Question</p>
+                <p className="mt-0.5 text-xs font-medium text-slate-800">
+                  "Which marketing channel delivers the highest ROI?"
+                </p>
+              </div>
 
-              {/* Result */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    Top region
-                  </p>
-
-                  <p className="mt-1 text-xl font-bold text-slate-900">
-                    West
-                  </p>
-
-                  <p className="mt-1 text-xs text-emerald-600">
-                    +18.4% revenue growth
-                  </p>
+              {/* Sample Answer */}
+              <div className="mt-3 rounded-xl border border-slate-100 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Top Channel</p>
+                    <p className="text-lg font-extrabold text-slate-900">Email Marketing</p>
+                    <p className="text-xs font-semibold text-emerald-600">+4.2× average ROI</p>
+                  </div>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                    <TrendingUp size={20} />
+                  </div>
                 </div>
 
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                  <BarChart3 size={19} />
+                {/* Progress bars */}
+                <div className="mt-4 space-y-2">
+                  <div>
+                    <div className="flex justify-between text-[10px] text-slate-600 mb-1">
+                      <span>Email</span>
+                      <span className="font-bold text-blue-600">420%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full bg-blue-600 rounded-full" style={{ width: "92%" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] text-slate-600 mb-1">
+                      <span>Organic Search</span>
+                      <span className="font-bold text-slate-600">280%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full bg-blue-400 rounded-full" style={{ width: "62%" }} />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Mini bars */}
-              <div className="mt-6 flex h-20 items-end gap-2">
-                {[38, 52, 44, 67, 58, 76, 92].map((height, index) => (
-                  <div
-                    key={index}
-                    className="flex-1 rounded-t-sm bg-blue-100"
-                    style={{ height: `${height}%` }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Floating insight */}
-            <div className="absolute -bottom-5 -left-5 hidden rounded-xl border border-blue-100 bg-white px-4 py-3 shadow-lg shadow-slate-200/50 sm:block">
-              <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-blue-600" />
-
-                <span className="text-xs font-semibold text-slate-800">
-                  Insight found
-                </span>
+              {/* Grounded badge */}
+              <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 px-1">
+                <span>Verified with Pandas</span>
+                <span className="font-medium text-blue-600">100% Deterministic</span>
               </div>
             </div>
           </div>
