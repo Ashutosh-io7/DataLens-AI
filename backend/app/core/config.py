@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     data_dir: Path = BACKEND_DIR / "data"
     database_url: str = "postgresql://postgres:postgres@localhost:5432/datalens_ai" 
 
+    secret_key: str = "dev-secret-change-me" 
+    jwt_algorithm: str = "HS256" 
+    access_token_expire_minutes: int = 60 * 24 # tokens last 24 hours 
+
     google_api_key: str = "" 
     llm_model: str = "gemini-3.6-flash" 
 

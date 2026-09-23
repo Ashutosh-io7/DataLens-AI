@@ -10,4 +10,6 @@ scikit-learn
 xgboost
 shap 
 langchain
-langchain-google-genai
+langchain-google-genai 
+python-jose[cryptography]
+bcrypt 
