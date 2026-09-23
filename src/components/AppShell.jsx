@@ -7,17 +7,21 @@ import {
   Database,
   FileSpreadsheet,
   FileUp,
+  LogOut,
   Plus,
   Trash2,
   Upload,
+  User,
   X,
 } from "lucide-react";
 import AppSidebar from "./AppSidebar"; 
 import { endpoints } from "../api"; 
+import { useAuth } from "../context/AuthContext"; 
 
 function AppShell() {
   const fileInputRef = useRef(null); 
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [error, setError] = useState("");
@@ -152,18 +156,31 @@ function AppShell() {
 
           <div className="flex items-center gap-3">
             <button
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
-              aria-label="Notifications"
-            >
-              <Bell size={17} />
-            </button>
-
-            <button
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
             >
               <Plus size={16} />
               New dataset
+            </button>
+
+            <div className="h-5 w-px bg-slate-200 mx-0.5" />
+
+            {user?.email && (
+              <div className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700">
+                <User size={14} className="text-blue-600" />
+                <span className="max-w-40 truncate">{user.email}</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                logout();
+                navigate("/login");
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+              title="Sign out"
+            >
+              <LogOut size={16} />
             </button>
           </div>
         </header>

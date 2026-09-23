@@ -3,7 +3,12 @@ from __future__ import annotations
 from typing import Literal, Optional 
 import pandas as pd 
 from pydantic import BaseModel, Field 
-from langchain_google_genai import ChatGoogleGenerativeAI 
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    _HAS_GENAI = True
+except ImportError:
+    ChatGoogleGenerativeAI = None
+    _HAS_GENAI = False
 import concurrent.futures 
 
 from app.core.config import settings 
@@ -143,6 +148,8 @@ def get_llm_plan(question: str, df: pd.DataFrame) -> dict:
     The caller is expected to catch any exception here and fall back to
     the rule-based planner.
     """
+    if not _HAS_GENAI:
+        raise RuntimeError("langchain-google-genai is not installed.")
     if not settings.google_api_key:
         raise RuntimeError("No Gemini API key configured.")
 

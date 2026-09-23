@@ -1,21 +1,24 @@
-import { ArrowRight, Menu, X } from "lucide-react";
+import { ArrowRight, Menu, User, X } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import DataLensLogo from "./DataLensLogo";
+import { useAuth } from "../context/AuthContext";
 
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { isAuthenticated, user, logout } = useAuth();
 
   return (
     <nav className="sticky top-0 z-50 border-b border-slate-200/80 bg-slate-50/90 px-6 backdrop-blur-md lg:px-16">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between">
         {/* Brand */}
-        <a href="#" className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2">
           <DataLensLogo size={36} />
 
           <span className="text-xl font-bold tracking-tight text-slate-900">
             DataLens <span className="text-blue-600">AI</span>
           </span>
-        </a>
+        </Link>
 
         {/* Desktop Navigation */}
         <div className="hidden items-center gap-9 text-sm font-medium text-slate-600 md:flex">
@@ -34,14 +37,39 @@ function Navbar() {
 
         {/* Desktop Actions */}
         <div className="hidden items-center gap-4 md:flex">
-          <button className="text-sm font-semibold text-slate-700 transition hover:text-slate-900">
-            Log in
-          </button>
+          {isAuthenticated ? (
+            <>
+              <div className="flex items-center gap-2 text-xs text-slate-600 font-medium bg-slate-100/80 px-3 py-1.5 rounded-lg border border-slate-200">
+                <User size={14} className="text-blue-600" />
+                <span>{user?.email}</span>
+              </div>
 
-          <button className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">
-            Get Started
-            <ArrowRight size={16} />
-          </button>
+              <Link
+                to="/app"
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                Go to Workspace
+                <ArrowRight size={16} />
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="text-sm font-semibold text-slate-700 transition hover:text-slate-900"
+              >
+                Log in
+              </Link>
+
+              <Link
+                to="/signup"
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                Get Started
+                <ArrowRight size={16} />
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
@@ -84,14 +112,35 @@ function Navbar() {
             </a>
 
             <div className="mt-3 flex gap-3 border-t border-slate-200 pt-4">
-              <button className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">
-                Log in
-              </button>
+              {isAuthenticated ? (
+                <Link
+                  to="/app"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white"
+                >
+                  Go to Workspace
+                  <ArrowRight size={16} />
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex-1 text-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                  >
+                    Log in
+                  </Link>
 
-              <button className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white">
-                Get Started
-                <ArrowRight size={16} />
-              </button>
+                  <Link
+                    to="/signup"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white"
+                  >
+                    Get Started
+                    <ArrowRight size={16} />
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -22,6 +22,11 @@ from app.core.exceptions import (
     InvalidDatasetError,
     UnsupportedFileTypeError,
 )
+from app.services.conversation_service import (
+    clear_conversation,
+    get_or_create_conversation,
+    persist_turn,
+)
 
 router = APIRouter() 
 
@@ -178,6 +183,9 @@ def query_dataset(
             context=request.context,
         )
 
+        # Persist conversation turn in PostgreSQL if available
+        persist_turn(dataset_id, request.question, result)
+
         return {
             "dataset_id": dataset_id,
             "question": request.question,
@@ -192,6 +200,18 @@ def query_dataset(
 
     except Exception as exc:
         raise InvalidDatasetError(f"Unable to analyze dataset: {str(exc)}")  
+
+@router.get("/{dataset_id}/conversation")
+def get_conversation(dataset_id: str):
+    conv = get_or_create_conversation(dataset_id)
+    if not conv:
+        return {"conversation_id": None, "dataset_id": dataset_id, "messages": []}
+    return conv
+
+@router.delete("/{dataset_id}/conversation")
+def reset_conversation(dataset_id: str):
+    cleared = clear_conversation(dataset_id)
+    return {"cleared": cleared}
 
 @router.delete("/{dataset_id}")
 def remove_dataset(dataset_id: str):

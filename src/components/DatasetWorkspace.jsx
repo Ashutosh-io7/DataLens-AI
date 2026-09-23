@@ -7,6 +7,7 @@ import {
   Info,
   Lightbulb,
   MessageSquare,
+  RotateCcw,
   Send,
   Sparkles,
   Table2,
@@ -78,6 +79,19 @@ function DatasetWorkspace() {
         setColumns(dataset.column_names || []);
         setTotalRows(dataset.rows || 0);
         setProfile(dataset.profile || null);
+
+        // Fetch persisted conversation history from PostgreSQL
+        try {
+          const convRes = await fetch(endpoints.getConversation(id));
+          if (convRes.ok) {
+            const convData = await convRes.json();
+            if (convData.messages && convData.messages.length > 0) {
+              setMessages(convData.messages);
+            }
+          }
+        } catch {
+          // If conversation endpoint is unavailable, preserve default welcome
+        }
       } catch (err) {
         setError(err.message || "Unable to load dataset.");
       } finally {
@@ -87,6 +101,28 @@ function DatasetWorkspace() {
 
     loadDataset();
   }, [id]); 
+
+  const handleClearChat = async () => {
+    if (!window.confirm("Are you sure you want to reset this conversation history?")) return;
+    try {
+      await fetch(endpoints.clearConversation(id), { method: "DELETE" });
+    } catch {
+      // offline/file storage tolerance
+    }
+    setMessages([
+      {
+        id: "welcome",
+        sender: "ai",
+        text: "Hello! I am your DataLens AI analyst. Your dataset is loaded and ready. Ask me any question, explore distributions, check missing values, or uncover trends.",
+        suggestedFollowUps: [
+          "How many rows and columns?",
+          "Show missing values breakdown",
+          "Are there any duplicate rows?",
+        ],
+      },
+    ]);
+    setConversationContext({});
+  };
 
   const handleAskQuestion = async (queryText = null) => {
     const textToSend = (queryText || question).trim();
@@ -331,7 +367,7 @@ function DatasetWorkspace() {
             {/* AI Conversational Analyst Panel */}
             <section className="flex h-[680px] flex-col rounded-2xl border border-slate-200 bg-white shadow-xs">
               {/* Header */}
-              <div className="border-b border-slate-200 px-5 py-4">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div className="flex items-center gap-2.5">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
                     <Bot size={17} />
@@ -345,6 +381,17 @@ function DatasetWorkspace() {
                     </p>
                   </div>
                 </div>
+
+                {messages.length > 1 && (
+                  <button
+                    onClick={handleClearChat}
+                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                    title="Reset conversation history"
+                  >
+                    <RotateCcw size={13} />
+                    <span>Reset</span>
+                  </button>
+                )}
               </div>
 
               {/* Chat Thread */}
