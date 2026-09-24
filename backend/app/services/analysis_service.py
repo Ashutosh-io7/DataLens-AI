@@ -1,7 +1,8 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import math
 from typing import Any
+import numpy as np
 import pandas as pd
 
 from app.services.visualization_service import (
@@ -16,7 +17,8 @@ from app.services.visualization_service import (
 )
 from app.services.query_planner import plan_query
 from app.services.ml_service import train_and_explain_model 
-from app.services.llm_service import get_llm_plan 
+from app.services.llm_service import generate_executive_briefing, get_llm_plan 
+from app.services.code_executor import execute_pandas_query 
 
 
 def _safe_number(value: Any) -> int | float | None:
@@ -381,6 +383,174 @@ def execute_plan(plan: dict[str, Any], df: pd.DataFrame, question: str) -> dict[
                 "explanation": "Target column could not be encoded or insufficient features were available.",
                 "suggested_follow_ups": ["How many rows in dataset?", "Show columns list"],
             }
+
+    # 11. Dynamic Pandas Execution (Universal Data Scientist)
+    if intent == "dynamic_pandas":
+        code = plan.get("pandas_code")
+        if code:
+            try:
+                res = execute_pandas_query(code, df)
+                explanation = plan.get("explanation") or "Calculated directly using safe, deterministic Pandas code."
+                follow_ups = plan.get("suggested_follow_ups") or [
+                    "What are the top categories?",
+                    "Show summary statistics",
+                ]
+
+                # Scalar result (int, float, bool)
+                if isinstance(res, (int, float, np.integer, np.floating)):
+                    num_val = _safe_number(res)
+                    if num_val is None:
+                        ans_text = "The calculation evaluated to no valid numeric value (NaN)."
+                    elif isinstance(res, float) and 0.0 <= res <= 100.0 and ("percent" in question.lower() or "%" in question):
+                        ans_text = f"The calculated result is **{num_val:.2f}%**."
+                    else:
+                        ans_text = f"The calculated result is **{num_val:,}**."
+
+                    return {
+                        "answer": ans_text,
+                        "analysis_type": "dynamic_pandas",
+                        "value": num_val,
+                        "explanation": explanation,
+                        "suggested_follow_ups": follow_ups,
+                    }
+
+                if isinstance(res, (bool, np.bool_)):
+                    status_bool = "Yes (True)" if res else "No (False)"
+                    return {
+                        "answer": f"The query condition evaluated to **{status_bool}**.",
+                        "analysis_type": "dynamic_pandas",
+                        "value": bool(res),
+                        "explanation": explanation,
+                        "suggested_follow_ups": follow_ups,
+                    }
+
+                # Series result (breakdown / category grouping)
+                if isinstance(res, pd.Series):
+                    clean_s = res.dropna().head(10)
+                    if clean_s.empty:
+                        return {
+                            "answer": "The query returned an empty result with no matching records.",
+                            "analysis_type": "dynamic_pandas",
+                            "explanation": explanation,
+                            "suggested_follow_ups": follow_ups,
+                        }
+
+                    values = [{"label": str(k), "value": _safe_number(v)} for k, v in clean_s.items()]
+                    list_items = [
+                        f"- **{k}**: {v:,}" if isinstance(v, (int, float)) and v is not None else f"- **{k}**: {v}"
+                        for k, v in clean_s.items()
+                    ]
+                    list_str = "\n".join(list_items)
+
+                    chart = None
+                    if all(isinstance(v["value"], (int, float)) for v in values if v["value"] is not None):
+                        chart = grouped_chart(str(clean_s.index.name or "Category"), values, "Value")
+
+                    return {
+                        "answer": f"**Analysis Breakdown:**\n\n{list_str}",
+                        "analysis_type": "dynamic_pandas",
+                        "values": values,
+                        "chart": chart,
+                        "explanation": explanation,
+                        "suggested_follow_ups": follow_ups,
+                    }
+
+                # DataFrame result (tabular / multi-column output)
+                if isinstance(res, pd.DataFrame):
+                    preview = res.head(10)
+                    if preview.empty:
+                        return {
+                            "answer": "The query returned 0 rows matching your filter criteria.",
+                            "analysis_type": "dynamic_pandas",
+                            "explanation": explanation,
+                            "suggested_follow_ups": follow_ups,
+                        }
+
+                    headers = " | ".join(str(c) for c in preview.columns)
+                    divs = " | ".join("---" for _ in preview.columns)
+                    rows_md = []
+                    for _, row in preview.iterrows():
+                        row_str = " | ".join(
+                            f"{_safe_number(val):,}" if isinstance(val, (int, float)) and not pd.isna(val) else str(val)
+                            for val in row
+                        )
+                        rows_md.append(f"| {row_str} |")
+
+                    table_md = f"| {headers} |\n| {divs} |\n" + "\n".join(rows_md)
+
+                    chart = None
+                    if len(preview.columns) >= 2:
+                        first_col, sec_col = preview.columns[0], preview.columns[1]
+                        if pd.api.types.is_numeric_dtype(preview[sec_col]):
+                            values = [
+                                {"label": str(row[first_col]), "value": _safe_number(row[sec_col])}
+                                for _, row in preview.iterrows()
+                            ]
+                            chart = grouped_chart(str(first_col), values, str(sec_col))
+
+                    return {
+                        "answer": f"Found **{len(res)}** matching rows. Top results:\n\n{table_md}",
+                        "analysis_type": "dynamic_pandas",
+                        "chart": chart,
+                        "explanation": explanation,
+                        "suggested_follow_ups": follow_ups,
+                    }
+
+                return {
+                    "answer": f"Analysis output: **{str(res)}**",
+                    "analysis_type": "dynamic_pandas",
+                    "explanation": explanation,
+                    "suggested_follow_ups": follow_ups,
+                }
+            except Exception as e:
+                print(f"dynamic_pandas execution error: {e}")
+
+    # 12. Summary Statistics
+    if intent == "summary_statistics":
+        num_cols = df.select_dtypes(include="number").columns.tolist()
+        if not num_cols:
+            return {
+                "answer": "This dataset does not contain numeric columns for summary statistics.",
+                "analysis_type": "summary_statistics",
+                "explanation": "No numerical metrics detected in schema.",
+                "suggested_follow_ups": ["Show column list", "How many rows in dataset?"],
+            }
+
+        desc = df[num_cols[:6]].describe().round(2)
+        cols = desc.columns.tolist()
+        headers = "Metric | " + " | ".join(cols)
+        divider = "--- | " + " | ".join(["---"] * len(cols))
+        rows = []
+        for metric, row in desc.iterrows():
+            rows.append(
+                f"**{metric}** | " + " | ".join(f"{val:,}" if isinstance(val, (int, float)) else str(val) for val in row)
+            )
+
+        table = f"| {headers} |\n| {divider} |\n" + "\n".join([f"| {r} |" for r in rows])
+        return {
+            "answer": f"**Summary Statistics (Top Numeric Columns):**\n\n{table}",
+            "analysis_type": "summary_statistics",
+            "explanation": f"Computed count, mean, standard deviation, min, median, and percentiles across {len(num_cols)} numeric attributes.",
+            "suggested_follow_ups": [
+                f"What is the distribution of {num_cols[0]}?",
+                "Show correlation between columns",
+                "Are there any outliers?",
+            ],
+        }
+
+    # 13. Executive Dataset Briefing
+    if intent == "dataset_summary":
+        briefing = generate_executive_briefing(df, question)
+        return {
+            "answer": briefing,
+            "analysis_type": "dataset_summary",
+            "explanation": "Synthesized dataset scope, key dimensions, quantitative indicators, and quality metrics.",
+            "suggested_follow_ups": [
+                "Show summary statistics",
+                "Are there any missing values?",
+                "Which features correlate with the main metrics?",
+            ],
+        }
 
     # Fallback when intent is unclear or required columns are missing
     return {

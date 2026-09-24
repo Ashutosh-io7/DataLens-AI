@@ -55,7 +55,22 @@ def plan_query(
     numeric_cols = df.select_dtypes(include="number").columns.tolist()
     categorical_cols = df.select_dtypes(include=["object", "category", "string"]).columns.tolist()
     
-    # 1. Row count / Dataset size
+    # 1. Dataset Overview / Executive Summary
+    if any(p in norm_q for p in [
+        "what is this dataset about", "summarize this data", "summarize the dataset",
+        "executive summary", "key takeaways", "dataset overview", "give me an overview",
+        "what insights can i get", "explain this dataset", "about this data"
+    ]):
+        return {"intent": "dataset_summary"}
+
+    # 1b. Summary Statistics / Descriptive Stats
+    if any(p in norm_q for p in [
+        "summary statistics", "statistical summary", "describe the data", "describe the dataset",
+        "descriptive statistics", "overview of stats", "statistical overview", "stats summary"
+    ]):
+        return {"intent": "summary_statistics"}
+
+    # 1c. Row count / Dataset size
     if any(p in norm_q for p in ["how many rows", "number of rows", "total rows", "row count", "how many records", "how big is"]):
         return {"intent": "row_count", "operation": "count"}
 
