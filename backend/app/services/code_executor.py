@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import ast
+import concurrent.futures 
 from typing import Any
 import numpy as np
-import pandas as pd
+import pandas as pd 
+
+_exec_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4) 
 
 # ALLOWLIST, not a blocklist: only attribute/method names listed here may be
 # accessed on ANY object in the sandbox (df, pd, np, or anything derived
@@ -24,10 +27,12 @@ ALLOWED_ATTRS = {
     "unique", "value_counts", "describe", "corr", "cov", "mode", "quantile",
     "skew", "kurt", "cumsum", "cumprod", "cummax", "cummin", "rank", "diff",
     "pct_change",
-    # Grouping / reshaping / joining
+    # Grouping / reshaping (no merge/join/concat — there's only ever one
+    # dataframe in scope here, so those only enable expensive self-joins
+    # with no real upside)
     "groupby", "agg", "aggregate", "sort_values", "sort_index",
     "reset_index", "set_index", "rename", "rename_axis", "nlargest",
-    "nsmallest", "merge", "join", "concat", "pivot_table", "pivot", "melt",
+    "nsmallest", "pivot_table", "pivot", "melt",
     # Type conversion & rounding — no file/network I/O in this list
     "astype", "round", "abs", "to_numeric", "to_datetime", "to_dict",
     "to_list", "tolist", "to_frame", "to_numpy",
@@ -111,10 +116,15 @@ def is_safe_code(code_str: str) -> tuple[bool, str]:
     return True, ""
 
 
+def _run_exec(cleaned_code: str, safe_globals: dict, local_vars: dict) -> None:
+    exec(cleaned_code, safe_globals, local_vars)
+
+
 def execute_pandas_query(code_str: str, df: pd.DataFrame) -> Any:
     """Executes validated pandas code against a copy of the dataframe.
     Nothing runs until is_safe_code() has approved every single node in it —
-    this is default-deny, not default-allow-minus-a-blocklist."""
+    this is default-deny, not default-allow-minus-a-blocklist. Also enforces
+    a hard time limit so one expensive query can't stall the server."""
     safe, reason = is_safe_code(code_str)
     if not safe:
         raise ValueError(f"Security validation error: {reason}")
@@ -131,7 +141,11 @@ def execute_pandas_query(code_str: str, df: pd.DataFrame) -> Any:
     if "\n" not in cleaned_code and not cleaned_code.startswith("result"):
         cleaned_code = f"result = {cleaned_code}"
 
-    exec(cleaned_code, safe_globals, local_vars)
+    future = _exec_pool.submit(_run_exec, cleaned_code, safe_globals, local_vars)
+    try:
+        future.result(timeout=8)
+    except concurrent.futures.TimeoutError:
+        raise ValueError("This query took too long to run and was stopped — try a simpler question.")
 
     if "result" not in local_vars:
         raise ValueError("Pandas query must assign output to `result`.")
