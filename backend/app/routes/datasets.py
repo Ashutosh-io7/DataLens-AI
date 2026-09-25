@@ -126,7 +126,7 @@ def get_dataset(dataset_id: str):
         )
 
         preview = (
-            df.head(10)
+            df.head(100)
             .fillna("")
             .to_dict(orient="records")
         )

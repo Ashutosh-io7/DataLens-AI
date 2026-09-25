@@ -3,11 +3,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Bot,
+  ChevronLeft,
+  ChevronRight,
+  Columns3,
   Database,
   Info,
   Lightbulb,
   MessageSquare,
   RotateCcw,
+  Search,
   Send,
   Sparkles,
   Table2,
@@ -57,6 +61,28 @@ function DatasetWorkspace() {
   const [asking, setAsking] = useState(false); 
   const [conversationContext, setConversationContext] = useState({});
   const chatBottomRef = useRef(null);
+
+  // Interactive dataset explorer state
+  const [explorerTab, setExplorerTab] = useState("grid"); // "grid" | "schema"
+  const [tableSearch, setTableSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+
+  // Filter and paginate data
+  const filteredData = data.filter((row) => {
+    if (!tableSearch.trim()) return true;
+    const query = tableSearch.toLowerCase();
+    return Object.values(row).some((val) =>
+      String(val).toLowerCase().includes(query)
+    );
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedData = filteredData.slice(
+    (safeCurrentPage - 1) * pageSize,
+    safeCurrentPage * pageSize
+  );
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -288,28 +314,63 @@ function DatasetWorkspace() {
           {/* Main Grid: Data Preview & AI Conversational Analyst */}
           <div className="grid gap-6 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_460px]">
 
-            {/* Dataset preview */}
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">
-                    Dataset preview
-                  </h2>
-                  <p className="mt-1 text-xs text-slate-400">
-                    First 10 sample rows
-                  </p>
+            {/* Dataset Preview Section */}
+            <section className="flex h-[680px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+              {/* Header with tabs and search */}
+              <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  {/* View Tabs */}
+                  <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                    <button
+                      onClick={() => setExplorerTab("grid")}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                        explorerTab === "grid"
+                          ? "bg-white text-blue-600 shadow-2xs"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      <Table2 size={13} />
+                      <span>Data Grid</span>
+                    </button>
+                    <button
+                      onClick={() => setExplorerTab("schema")}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                        explorerTab === "schema"
+                          ? "bg-white text-blue-600 shadow-2xs"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      <Columns3 size={13} />
+                      <span>Schema & Types</span>
+                    </button>
+                  </div>
+
+                  <span className="hidden text-xs text-slate-400 sm:inline">
+                    {totalRows.toLocaleString()} total records
+                  </span>
                 </div>
 
-                {!loading && !error && (
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <Table2 size={15} />
-                    {totalRows.toLocaleString()} rows
+                {explorerTab === "grid" && !loading && !error && (
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={tableSearch}
+                        onChange={(e) => {
+                          setTableSearch(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        placeholder="Filter rows..."
+                        className="h-8 w-40 rounded-lg border border-slate-200 bg-white pl-7 pr-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
 
               {loading && (
-                <div className="flex min-h-96 items-center justify-center p-8">
+                <div className="flex flex-1 items-center justify-center p-8">
                   <div className="text-center">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                       <Table2 size={21} />
@@ -325,7 +386,7 @@ function DatasetWorkspace() {
               )}
 
               {error && (
-                <div className="flex min-h-96 items-center justify-center p-8">
+                <div className="flex flex-1 items-center justify-center p-8">
                   <div className="text-center">
                     <h3 className="text-sm font-semibold text-red-600">
                       Unable to load dataset
@@ -337,38 +398,156 @@ function DatasetWorkspace() {
                 </div>
               )}
 
-              {!loading && !error && (
-                <div className="overflow-x-auto flex-1">
-                  <table className="w-full min-w-max text-left text-xs">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        {columns.map((column) => (
-                          <th
-                            key={column}
-                            className="border-b border-slate-200 px-4 py-3 font-semibold text-slate-600"
-                          >
-                            {column}
+              {!loading && !error && explorerTab === "grid" && (
+                <>
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full min-w-max text-left text-xs">
+                      <thead className="bg-slate-50 sticky top-0 z-10">
+                        <tr>
+                          <th className="border-b border-slate-200 px-3 py-2.5 font-mono text-[11px] font-semibold text-slate-400 bg-slate-50 w-10 text-center">
+                            #
                           </th>
-                        ))}
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {data.slice(0, 10).map((row, rowIndex) => (
-                        <tr
-                          key={rowIndex}
-                          className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition"
-                        >
                           {columns.map((column) => (
-                            <td
+                            <th
                               key={column}
-                              className="max-w-48 truncate px-4 py-3 text-slate-600"
+                              className="border-b border-slate-200 px-3.5 py-2.5 font-semibold text-slate-700 bg-slate-50"
                             >
-                              {String(row[column] ?? "")}
-                            </td>
+                              <div className="flex items-center gap-1.5">
+                                <span>{column}</span>
+                              </div>
+                            </th>
                           ))}
                         </tr>
-                      ))}
+                      </thead>
+
+                      <tbody>
+                        {paginatedData.length > 0 ? (
+                          paginatedData.map((row, rowIndex) => (
+                            <tr
+                              key={rowIndex}
+                              className="border-b border-slate-100 last:border-0 hover:bg-blue-50/30 transition"
+                            >
+                              <td className="px-3 py-2 text-center font-mono text-[11px] text-slate-400 border-r border-slate-50">
+                                {(safeCurrentPage - 1) * pageSize + rowIndex + 1}
+                              </td>
+                              {columns.map((column) => (
+                                <td
+                                  key={column}
+                                  className="max-w-52 truncate px-3.5 py-2 text-slate-600"
+                                >
+                                  {String(row[column] ?? "")}
+                                </td>
+                              ))}
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={columns.length + 1} className="py-16 text-center text-xs text-slate-400">
+                              No rows match "{tableSearch}".
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination footer */}
+                  <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50/80 px-4 py-2 text-xs text-slate-600">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500">Rows:</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-700 cursor-pointer"
+                      >
+                        <option value={15}>15</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                      </select>
+                      <span className="text-[11px] text-slate-400">
+                        {filteredData.length > 0
+                          ? `Showing ${(safeCurrentPage - 1) * pageSize + 1}-${Math.min(safeCurrentPage * pageSize, filteredData.length)} of ${filteredData.length} records`
+                          : "0 records"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={safeCurrentPage <= 1}
+                        className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        title="Previous page"
+                      >
+                        <ChevronLeft size={13} />
+                      </button>
+                      <span className="px-1.5 text-[11px] font-medium text-slate-700">
+                        {safeCurrentPage} / {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={safeCurrentPage >= totalPages}
+                        className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        title="Next page"
+                      >
+                        <ChevronRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {!loading && !error && explorerTab === "schema" && (
+                <div className="flex-1 overflow-auto p-4">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 font-semibold">
+                        <th className="pb-2 pl-2">Column</th>
+                        <th className="pb-2">Type</th>
+                        <th className="pb-2">Profile / Sample</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {columns.map((col) => {
+                        const colProf = profile?.column_profiles?.[col] || {};
+                        const semType = colProf.semantic_type || "text";
+                        const isNum = semType === "numeric";
+                        return (
+                          <tr key={col} className="hover:bg-slate-50/70 transition">
+                            <td className="py-2.5 pl-2 font-medium text-slate-800">
+                              {col}
+                            </td>
+                            <td className="py-2.5">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  isNum
+                                    ? "bg-blue-50 text-blue-700 border border-blue-100"
+                                    : semType === "datetime"
+                                    ? "bg-violet-50 text-violet-700 border border-violet-100"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {isNum ? "Numeric" : semType === "datetime" ? "Datetime" : "Categorical"}
+                              </span>
+                            </td>
+                            <td className="py-2.5 text-slate-500 text-[11px]">
+                              {isNum ? (
+                                <span>
+                                  Median: <strong>{colProf.median ?? "N/A"}</strong> · Std: {colProf.std ?? "N/A"}
+                                </span>
+                              ) : colProf.top_values?.length ? (
+                                <span>
+                                  Top: {colProf.top_values.slice(0, 3).map((v) => `${v.label} (${v.count})`).join(", ")}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">Available in records</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
