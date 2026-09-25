@@ -8,8 +8,9 @@ sqlalchemy
 psycopg2-binary
 scikit-learn
 xgboost
-shap 
+shap
 langchain
-langchain-google-genai 
+langchain-google-genai
 python-jose[cryptography]
-bcrypt 
+bcrypt
+pytest
