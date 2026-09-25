@@ -12,6 +12,7 @@ export const endpoints = {
   queryDataset:      (id) => `${API_BASE}/api/datasets/${id}/query`,
   deleteDataset:     (id) => `${API_BASE}/api/datasets/${id}`,
   health:            `${API_BASE}/api/datasets/health`,  
+  charts:            `${API_BASE}/api/datasets/charts`,
   getConversation:   (id) => `${API_BASE}/api/datasets/${id}/conversation`,
   clearConversation: (id) => `${API_BASE}/api/datasets/${id}/conversation`,
   signup:            `${API_BASE}/api/auth/signup`,

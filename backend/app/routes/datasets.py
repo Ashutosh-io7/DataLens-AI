@@ -24,6 +24,7 @@ from app.core.exceptions import (
 )
 from app.services.conversation_service import (
     clear_conversation,
+    get_all_charts,
     get_or_create_conversation,
     persist_turn,
 )
@@ -93,6 +94,10 @@ async def upload_dataset(file: UploadFile = File(...)):
     except Exception as exc:
         raise InvalidDatasetError(f"Unable to process dataset: {str(exc)}")
 
+
+@router.get("/charts") 
+def get_charts(limit: int = 60): 
+    return {"charts": get_all_charts(limit=limit)}
 
 @router.get("/health")
 def health_check():
@@ -224,4 +229,4 @@ def remove_dataset(dataset_id: str):
 def get_datasets():
     return {
         "datasets": list_dataset_metadata()
-    }
+    }

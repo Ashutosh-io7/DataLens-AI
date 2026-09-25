@@ -60,7 +60,20 @@ function AppShell() {
   const [datasetSearch, setDatasetSearch] = useState("");
   const [savedInsights, setSavedInsights] = useState([]);
   const [copiedId, setCopiedId] = useState(null);
-  const [insightSearch, setInsightSearch] = useState("");
+  const [insightSearch, setInsightSearch] = useState(""); 
+  const [charts, setCharts] = useState([]); 
+  const [loadingCharts, setLoadingCharts] = useState(false); 
+
+  useEffect(() => {
+    if (activeTab === "charts") {
+      setLoadingCharts(true);
+      fetch(endpoints.charts)
+       .then((res) => res.json())
+       .then((data) => setCharts(data.charts || []))
+       .catch(() => setCharts([])) 
+       .finally(() => setLoadingCharts(false)); 
+    }
+  }, [activeTab]); 
 
   useEffect(() => {
     setSavedInsights(getSavedInsights());
@@ -209,6 +222,7 @@ function AppShell() {
               {activeTab === "overview" && "Workspace Overview"}
               {activeTab === "datasets" && "Dataset Management"}
               {activeTab === "conversations" && "Conversations & Sessions"}
+              {activeTab === "charts" && "Chart Gallery"}
               {activeTab === "insights" && "Saved Insights"}
               {activeTab === "settings" && "System Settings"}
             </h1>
@@ -846,6 +860,79 @@ function AppShell() {
                           <span>Explore your datasets</span>
                         </button>
                       )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )} 
+
+            {/* TAB: CHARTS */}
+            {activeTab === "charts" && (
+              <div>
+                <div>
+                  <p className="text-sm font-medium text-blue-600">Charts</p>
+                  <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+                    Every Visualization, In One Place
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Every chart the AI has generated across your datasets, collected automatically — no need to save them manually.
+                  </p>
+                </div>
+
+                {loadingCharts ? (
+                  <div className="mt-6 flex min-h-48 items-center justify-center rounded-2xl border border-slate-200 bg-white">
+                    <p className="text-xs text-slate-400">Loading charts...</p>
+                  </div>
+                ) : charts.length > 0 ? (
+                  <div className="mt-6 grid gap-4 xl:grid-cols-2">
+                    {charts.map((c) => (
+                      <div
+                        key={c.message_id}
+                        className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:border-blue-200"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                              <BarChart3 size={15} />
+                            </div>
+                            <span className="text-xs font-semibold text-slate-700">{c.dataset_filename}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400">
+                            {c.created_at ? new Date(c.created_at).toLocaleDateString() : ""}
+                          </span>
+                        </div>
+
+                        {c.question && (
+                          <p className="mt-3 text-xs font-medium text-slate-500">
+                            {renderInsightText(c.question)}
+                          </p>
+                        )}
+
+                        <div className="mt-3">
+                          <AnalysisChart chart={c.chart} />
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                          <p className="line-clamp-1 text-[11px] text-slate-400">{renderInsightText(c.answer)}</p>
+                          <button
+                            onClick={() => navigate(`/app/datasets/${c.dataset_id}`)}
+                            className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                          >
+                            <span>Open</span>
+                            <ArrowRight size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-6 flex min-h-48 items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 text-center">
+                    <div>
+                      <BarChart3 size={24} className="mx-auto text-slate-300" />
+                      <p className="mt-3 text-sm font-semibold text-slate-700">No charts yet</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Ask a question that produces a chart, and it'll show up here automatically.
+                      </p>
                     </div>
                   </div>
                 )}
