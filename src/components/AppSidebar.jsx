@@ -25,7 +25,7 @@ function AppSidebar({ activeTab = "overview", onTabChange }) {
   ];
 
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
+    <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
       {/* Brand */} 
       <div className="flex h-16 items-center border-b border-slate-200 px-5">
         <Link to="/" className="flex items-center gap-2">
@@ -40,7 +40,7 @@ function AppSidebar({ activeTab = "overview", onTabChange }) {
       </div> 
 
       {/* Navigation */} 
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.key;
