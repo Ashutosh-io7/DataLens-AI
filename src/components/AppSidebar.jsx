@@ -24,8 +24,8 @@ function AppSidebar({ activeTab = "overview", onTabChange }) {
     { key: "overview", label: "Overview", icon: Home },
     { key: "datasets", label: "Datasets", icon: Database },
     { key: "conversations", label: "Conversations", icon: MessageSquare },
-    { key: "charts", label: "Charts", icon: BarChart3 },
     { key: "insights", label: "Saved Insights", icon: Bookmark },
+    { key: "charts", label: "Charts", icon: BarChart3 },
   ];
 
   return (

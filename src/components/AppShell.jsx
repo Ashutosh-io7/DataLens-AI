@@ -12,6 +12,7 @@ import {
   ExternalLink,
   FileSpreadsheet,
   FileUp,
+  Filter,
   HardDrive,
   LogOut,
   MessageSquare,
@@ -29,7 +30,7 @@ import AppSidebar from "./AppSidebar";
 import AnalysisChart from "./AnalysisChart";
 import { endpoints } from "../api"; 
 import { useAuth } from "../context/AuthContext"; 
-import { getSavedInsights, removeInsight } from "../utils/insightsStorage";
+import { getSavedInsights, saveInsight, removeInsight } from "../utils/insightsStorage";
 
 function renderInsightText(text) {
   if (!text) return null;
@@ -63,6 +64,10 @@ function AppShell() {
   const [insightSearch, setInsightSearch] = useState(""); 
   const [charts, setCharts] = useState([]); 
   const [loadingCharts, setLoadingCharts] = useState(false); 
+  const [chartSearch, setChartSearch] = useState("");
+  const [chartTypeFilter, setChartTypeFilter] = useState("all");
+  const [chartDatasetFilter, setChartDatasetFilter] = useState("all");
+  const [savedChartIds, setSavedChartIds] = useState([]);
 
   useEffect(() => {
     if (activeTab === "charts") {
@@ -76,7 +81,9 @@ function AppShell() {
   }, [activeTab]); 
 
   useEffect(() => {
-    setSavedInsights(getSavedInsights());
+    const list = getSavedInsights();
+    setSavedInsights(list);
+    setSavedChartIds(list.map((item) => item.id));
   }, [activeTab]);
 
   const handleDeleteInsight = (insightId, e) => {
@@ -209,6 +216,92 @@ function AppShell() {
     return dsName.includes(q) || question.includes(q) || answer.includes(q);
   });
 
+  const handleToggleSaveChart = (c, e) => {
+    e.stopPropagation();
+    const isAlreadySaved = savedChartIds.includes(c.message_id);
+    if (isAlreadySaved) {
+      const updated = removeInsight(c.message_id);
+      setSavedInsights(updated);
+      setSavedChartIds((prev) => prev.filter((id) => id !== c.message_id));
+    } else {
+      const insight = {
+        id: c.message_id,
+        dataset_id: c.dataset_id,
+        dataset_name: c.dataset_filename,
+        question: c.question || "Generated Chart",
+        answer: c.answer || "",
+        chart: c.chart || null,
+        metrics: null,
+        analysis_type: c.analysis_type || null,
+        saved_at: new Date().toISOString(),
+      };
+      const updated = saveInsight(insight);
+      setSavedInsights(updated);
+      setSavedChartIds((prev) => [...prev, c.message_id]);
+    }
+  };
+
+  const uniqueChartDatasets = Array.from(
+    new Set((charts || []).map((c) => c.dataset_filename).filter(Boolean))
+  );
+
+  const filteredCharts = (charts || []).filter((c) => {
+    if (!c || !c.chart) return false;
+
+    if (chartTypeFilter !== "all") {
+      const cType = String(c.chart.type || "").toLowerCase();
+      if (chartTypeFilter === "other") {
+        if (["bar", "line", "histogram", "scatter", "pie"].includes(cType)) {
+          return false;
+        }
+      } else if (cType !== chartTypeFilter) {
+        return false;
+      }
+    }
+
+    if (chartDatasetFilter !== "all") {
+      if (c.dataset_filename !== chartDatasetFilter) {
+        return false;
+      }
+    }
+
+    if (chartSearch.trim()) {
+      const q = chartSearch.toLowerCase();
+      const ds = String(c.dataset_filename || "").toLowerCase();
+      const quest = String(c.question || "").toLowerCase();
+      const title = String(c.chart.title || "").toLowerCase();
+      const ans = String(c.answer || "").toLowerCase();
+      if (
+        !ds.includes(q) &&
+        !quest.includes(q) &&
+        !title.includes(q) &&
+        !ans.includes(q)
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  const getChartTypeBadge = (type) => {
+    const t = String(type || "").toLowerCase();
+    switch (t) {
+      case "bar":
+        return { label: "Bar Chart", bg: "bg-blue-50 text-blue-700 border-blue-200" };
+      case "line":
+        return { label: "Line Chart", bg: "bg-violet-50 text-violet-700 border-violet-200" };
+      case "histogram":
+        return { label: "Histogram", bg: "bg-amber-50 text-amber-700 border-amber-200" };
+      case "scatter":
+        return { label: "Scatter Plot", bg: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+      case "pie":
+        return { label: "Pie Chart", bg: "bg-pink-50 text-pink-700 border-pink-200" };
+      default:
+        return { label: t ? `${t.charAt(0).toUpperCase() + t.slice(1)}` : "Chart", bg: "bg-slate-100 text-slate-700 border-slate-200" };
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <AppSidebar activeTab={activeTab} onTabChange={handleTabChange} />
@@ -222,7 +315,7 @@ function AppShell() {
               {activeTab === "overview" && "Workspace Overview"}
               {activeTab === "datasets" && "Dataset Management"}
               {activeTab === "conversations" && "Conversations & Sessions"}
-              {activeTab === "charts" && "Chart Gallery"}
+              {activeTab === "charts" && "Charts"}
               {activeTab === "insights" && "Saved Insights"}
               {activeTab === "settings" && "System Settings"}
             </h1>
@@ -869,71 +962,220 @@ function AppShell() {
             {/* TAB: CHARTS */}
             {activeTab === "charts" && (
               <div>
-                <div>
-                  <p className="text-sm font-medium text-blue-600">Charts</p>
-                  <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-                    Every Visualization, In One Place
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Every chart the AI has generated across your datasets, collected automatically — no need to save them manually.
-                  </p>
+                {/* Header & Stats */}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">Visualizations</p>
+                    <div className="mt-1 flex items-center gap-3">
+                      <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                        Charts
+                      </h2>
+                      <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600 border border-blue-200">
+                        {filteredCharts.length} {filteredCharts.length === 1 ? "visualization" : "visualizations"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Every chart generated across your datasets, organized with instant filtering, search, and one-click bookmarking.
+                    </p>
+                  </div>
                 </div>
 
-                {loadingCharts ? (
-                  <div className="mt-6 flex min-h-48 items-center justify-center rounded-2xl border border-slate-200 bg-white">
-                    <p className="text-xs text-slate-400">Loading charts...</p>
-                  </div>
-                ) : charts.length > 0 ? (
-                  <div className="mt-6 grid gap-4 xl:grid-cols-2">
-                    {charts.map((c) => (
-                      <div
-                        key={c.message_id}
-                        className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:border-blue-200"
+                {/* Filter and Search Bar */}
+                <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs lg:flex-row lg:items-center lg:justify-between">
+                  {/* Chart Type Tabs */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[
+                      { key: "all", label: "All Types" },
+                      { key: "bar", label: "Bar" },
+                      { key: "line", label: "Line" },
+                      { key: "histogram", label: "Histogram" },
+                      { key: "scatter", label: "Scatter" },
+                      { key: "pie", label: "Pie" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setChartTypeFilter(tab.key)}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                          chartTypeFilter === tab.key
+                            ? "bg-blue-600 text-white shadow-xs"
+                            : "bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                        }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                              <BarChart3 size={15} />
-                            </div>
-                            <span className="text-xs font-semibold text-slate-700">{c.dataset_filename}</span>
-                          </div>
-                          <span className="text-[10px] text-slate-400">
-                            {c.created_at ? new Date(c.created_at).toLocaleDateString() : ""}
-                          </span>
-                        </div>
-
-                        {c.question && (
-                          <p className="mt-3 text-xs font-medium text-slate-500">
-                            {renderInsightText(c.question)}
-                          </p>
-                        )}
-
-                        <div className="mt-3">
-                          <AnalysisChart chart={c.chart} />
-                        </div>
-
-                        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-                          <p className="line-clamp-1 text-[11px] text-slate-400">{renderInsightText(c.answer)}</p>
-                          <button
-                            onClick={() => navigate(`/app/datasets/${c.dataset_id}`)}
-                            className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
-                          >
-                            <span>Open</span>
-                            <ArrowRight size={13} />
-                          </button>
-                        </div>
-                      </div>
+                        {tab.label}
+                      </button>
                     ))}
                   </div>
-                ) : (
-                  <div className="mt-6 flex min-h-48 items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 text-center">
-                    <div>
-                      <BarChart3 size={24} className="mx-auto text-slate-300" />
-                      <p className="mt-3 text-sm font-semibold text-slate-700">No charts yet</p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        Ask a question that produces a chart, and it'll show up here automatically.
-                      </p>
+
+                  {/* Dataset Dropdown & Search Bar */}
+                  <div className="flex flex-col sm:flex-row items-center gap-2.5">
+                    {uniqueChartDatasets.length > 0 && (
+                      <div className="relative w-full sm:w-auto">
+                        <select
+                          value={chartDatasetFilter}
+                          onChange={(e) => setChartDatasetFilter(e.target.value)}
+                          className="w-full sm:w-44 rounded-lg border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-xs font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                        >
+                          <option value="all">All datasets ({uniqueChartDatasets.length})</option>
+                          {uniqueChartDatasets.map((ds) => (
+                            <option key={ds} value={ds}>
+                              {ds}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="relative w-full sm:w-60">
+                      <Search
+                        size={14}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Search charts, prompts..."
+                        value={chartSearch}
+                        onChange={(e) => setChartSearch(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-7 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
+                      />
+                      {chartSearch && (
+                        <button
+                          onClick={() => setChartSearch("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
                     </div>
+                  </div>
+                </div>
+
+                {/* Content Area */}
+                {loadingCharts ? (
+                  <div className="mt-6 flex min-h-60 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-xs">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                    <p className="mt-3 text-xs font-medium text-slate-500">Loading visualizations...</p>
+                  </div>
+                ) : filteredCharts.length > 0 ? (
+                  <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                    {filteredCharts.map((c) => {
+                      const typeBadge = getChartTypeBadge(c.chart?.type);
+                      const isSaved = savedChartIds.includes(c.message_id);
+
+                      return (
+                        <div
+                          key={c.message_id}
+                          className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:border-blue-300 hover:shadow-md"
+                        >
+                          <div>
+                            {/* Card Top Meta */}
+                            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                  <Database size={14} />
+                                </div>
+                                <span className="truncate text-xs font-semibold text-slate-700" title={c.dataset_filename}>
+                                  {c.dataset_filename}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${typeBadge.bg}`}>
+                                  {typeBadge.label}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {c.created_at ? new Date(c.created_at).toLocaleDateString() : ""}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Analysis Question / Prompt */}
+                            {c.question && (
+                              <div className="mt-3.5 rounded-xl bg-slate-50 p-3 border border-slate-100">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                  Analysis Prompt
+                                </p>
+                                <p className="mt-1 text-xs font-medium text-slate-800 line-clamp-2">
+                                  {renderInsightText(c.question)}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Interactive Recharts Chart Component */}
+                            <div className="mt-4 overflow-hidden rounded-xl border border-slate-100 bg-slate-50/50 p-2">
+                              <AnalysisChart chart={c.chart} />
+                            </div>
+
+                            {/* AI Answer Summary Snippet */}
+                            {c.answer && (
+                              <p className="mt-3 line-clamp-2 text-xs text-slate-600">
+                                {renderInsightText(c.answer)}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Card Actions Footer */}
+                          <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                            <button
+                              onClick={(e) => handleToggleSaveChart(c, e)}
+                              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                                isSaved
+                                  ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-blue-600"
+                              }`}
+                            >
+                              <Bookmark size={13} className={isSaved ? "fill-amber-500 text-amber-500" : ""} />
+                              <span>{isSaved ? "Saved in Insights" : "Save to Insights"}</span>
+                            </button>
+
+                            <button
+                              onClick={() => navigate(`/app/datasets/${c.dataset_id}`)}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-100 transition cursor-pointer"
+                            >
+                              <span>Explore in Workspace</span>
+                              <ArrowRight size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="mt-6 flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center shadow-xs">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                      <BarChart3 size={24} />
+                    </div>
+                    {chartSearch || chartTypeFilter !== "all" || chartDatasetFilter !== "all" ? (
+                      <>
+                        <p className="mt-3 text-sm font-semibold text-slate-800">No matching charts found</p>
+                        <p className="mt-1 max-w-sm text-xs text-slate-500">
+                          Try changing your chart type filter, dataset selection, or search query.
+                        </p>
+                        <button
+                          onClick={() => {
+                            setChartSearch("");
+                            setChartTypeFilter("all");
+                            setChartDatasetFilter("all");
+                          }}
+                          className="mt-4 rounded-lg bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                        >
+                          Clear all filters
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-3 text-sm font-semibold text-slate-800">No charts generated yet</p>
+                        <p className="mt-1 max-w-sm text-xs text-slate-500">
+                          Ask the AI Analyst questions that generate trends, distributions, or comparisons in the workspace. They will automatically appear here.
+                        </p>
+                        <button
+                          onClick={() => handleTabChange("datasets")}
+                          className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition cursor-pointer"
+                        >
+                          <Database size={13} />
+                          <span>Explore datasets</span>
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
