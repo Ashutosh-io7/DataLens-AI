@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
+  Bookmark,
+  BookmarkCheck,
   Bot,
   ChevronLeft,
   ChevronRight,
@@ -20,6 +22,7 @@ import {
 import AnalysisChart from "./AnalysisChart"; 
 import AppSidebar from "./AppSidebar";
 import { endpoints } from "../api"; 
+import { getSavedInsights, saveInsight, removeInsight } from "../utils/insightsStorage"; 
 
 // Turns "**bold**" segments into real bold text for chat messages
 function renderFormattedText(text) {
@@ -83,6 +86,40 @@ function DatasetWorkspace() {
     (safeCurrentPage - 1) * pageSize,
     safeCurrentPage * pageSize
   );
+
+  const [savedInsightIds, setSavedInsightIds] = useState(() =>
+    getSavedInsights().map((item) => item.id)
+  );
+
+  const handleToggleSaveInsight = (msg, msgIndex) => {
+    // Find preceding user question
+    let precedingQuestion = "Data Analysis Finding";
+    for (let i = msgIndex - 1; i >= 0; i--) {
+      if (messages[i]?.sender === "user") {
+        precedingQuestion = messages[i].text;
+        break;
+      }
+    }
+
+    if (savedInsightIds.includes(msg.id)) {
+      removeInsight(msg.id);
+      setSavedInsightIds((prev) => prev.filter((itemId) => itemId !== msg.id));
+    } else {
+      const insight = {
+        id: msg.id,
+        dataset_id: id,
+        dataset_name: fileName,
+        question: precedingQuestion,
+        answer: msg.text,
+        chart: msg.chart || null,
+        metrics: msg.metrics || null,
+        analysis_type: msg.analysisType || null,
+        saved_at: new Date().toISOString(),
+      };
+      saveInsight(insight);
+      setSavedInsightIds((prev) => [...prev, msg.id]);
+    }
+  };
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -586,7 +623,7 @@ function DatasetWorkspace() {
 
               {/* Chat Thread */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((msg) => (
+                {messages.map((msg, msgIndex) => (
                   <div
                     key={msg.id}
                     className={`flex gap-3 ${
@@ -651,6 +688,36 @@ function DatasetWorkspace() {
                               </div>
                             </>
                           )}
+                        </div>
+                      )}
+
+                      {/* Save Insight Action Bar */}
+                      {msg.sender === "ai" && !msg.isError && msg.id !== "welcome" && (
+                        <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2 text-[11px]">
+                          <span className="text-slate-400 font-medium capitalize">
+                            {msg.analysisType?.replace("_", " ") || "Finding"}
+                          </span>
+                          <button
+                            onClick={() => handleToggleSaveInsight(msg, msgIndex)}
+                            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold transition cursor-pointer ${
+                              savedInsightIds.includes(msg.id)
+                                ? "bg-blue-100 text-blue-700 shadow-2xs"
+                                : "text-slate-500 hover:bg-slate-200/60 hover:text-slate-800"
+                            }`}
+                            title={savedInsightIds.includes(msg.id) ? "Remove from saved insights" : "Save this insight"}
+                          >
+                            {savedInsightIds.includes(msg.id) ? (
+                              <>
+                                <BookmarkCheck size={13} className="text-blue-600" />
+                                <span>Saved</span>
+                              </>
+                            ) : (
+                              <>
+                                <Bookmark size={13} />
+                                <span>Save insight</span>
+                              </>
+                            )}
+                          </button>
                         </div>
                       )}
 

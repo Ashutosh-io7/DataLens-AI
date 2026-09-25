@@ -3,9 +3,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   BarChart3,
+  Bookmark,
+  Check,
   CheckCircle2,
+  Copy,
   Cpu,
   Database,
+  ExternalLink,
   FileSpreadsheet,
   FileUp,
   HardDrive,
@@ -22,8 +26,22 @@ import {
   X,
 } from "lucide-react";
 import AppSidebar from "./AppSidebar"; 
+import AnalysisChart from "./AnalysisChart";
 import { endpoints } from "../api"; 
 import { useAuth } from "../context/AuthContext"; 
+import { getSavedInsights, removeInsight } from "../utils/insightsStorage";
+
+function renderInsightText(text) {
+  if (!text) return null;
+  const str = typeof text === "string" ? text : String(text);
+  const parts = str.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
 
 function AppShell() {
   const fileInputRef = useRef(null); 
@@ -40,6 +58,27 @@ function AppShell() {
   const [loadingDatasets, setLoadingDatasets] = useState(true); 
   const [health, setHealth] = useState(null); 
   const [datasetSearch, setDatasetSearch] = useState("");
+  const [savedInsights, setSavedInsights] = useState([]);
+  const [copiedId, setCopiedId] = useState(null);
+  const [insightSearch, setInsightSearch] = useState("");
+
+  useEffect(() => {
+    setSavedInsights(getSavedInsights());
+  }, [activeTab]);
+
+  const handleDeleteInsight = (insightId, e) => {
+    e.stopPropagation();
+    const updated = removeInsight(insightId);
+    setSavedInsights(updated);
+  };
+
+  const handleCopyInsight = (insight, e) => {
+    e.stopPropagation();
+    const content = `${insight.question}\n\n${insight.answer}`;
+    navigator.clipboard.writeText(content);
+    setCopiedId(insight.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const handleTabChange = (tabKey) => {
     setSearchParams({ tab: tabKey });
@@ -147,6 +186,16 @@ function AppShell() {
     ds.filename.toLowerCase().includes(datasetSearch.toLowerCase())
   );
 
+  const filteredInsights = (savedInsights || []).filter((item) => {
+    if (!item) return false;
+    if (!insightSearch.trim()) return true;
+    const q = insightSearch.toLowerCase();
+    const dsName = String(item.dataset_name || "").toLowerCase();
+    const question = String(item.question || "").toLowerCase();
+    const answer = String(item.answer || "").toLowerCase();
+    return dsName.includes(q) || question.includes(q) || answer.includes(q);
+  });
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <AppSidebar activeTab={activeTab} onTabChange={handleTabChange} />
@@ -160,6 +209,7 @@ function AppShell() {
               {activeTab === "overview" && "Workspace Overview"}
               {activeTab === "datasets" && "Dataset Management"}
               {activeTab === "conversations" && "Conversations & Sessions"}
+              {activeTab === "insights" && "Saved Insights"}
               {activeTab === "settings" && "System Settings"}
             </h1>
           </div>
@@ -620,6 +670,182 @@ function AppShell() {
                       <p className="mt-1 text-xs text-slate-400">
                         Upload a dataset and ask your first question to start a persistent session.
                       </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB: SAVED INSIGHTS */}
+            {activeTab === "insights" && (
+              <div>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-blue-600">Saved Insights</p>
+                      <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-100">
+                        {savedInsights.length} saved
+                      </span>
+                    </div>
+                    <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+                      Your Key Discoveries
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Pinned analytical findings, charts, and machine learning explainability cards.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Search Bar if we have insights */}
+                {savedInsights.length > 0 && (
+                  <div className="mt-6 flex items-center gap-3">
+                    <div className="relative flex-1">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+                        <Search size={16} />
+                      </div>
+                      <input
+                        type="text"
+                        value={insightSearch}
+                        onChange={(e) => setInsightSearch(e.target.value)}
+                        placeholder="Search saved insights by question, finding, or dataset..."
+                        className="block w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {filteredInsights.length > 0 ? (
+                  <div className="mt-6 grid gap-5 lg:grid-cols-2">
+                    {filteredInsights.map((insight) => (
+                      <div
+                        key={insight.id}
+                        className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:border-blue-200"
+                      >
+                        <div>
+                          {/* Card Header */}
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                <FileSpreadsheet size={15} />
+                              </div>
+                              <span className="text-xs font-semibold text-slate-800">
+                                {insight.dataset_name || "Dataset"}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-slate-400">
+                                {insight.saved_at ? new Date(insight.saved_at).toLocaleDateString() : ""}
+                              </span>
+                              <button
+                                onClick={(e) => handleDeleteInsight(insight.id, e)}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition cursor-pointer"
+                                title="Remove saved insight"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Question */}
+                          <div className="mt-3.5 rounded-xl bg-slate-50 p-3 text-xs">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              Question Asked
+                            </p>
+                            <p className="mt-0.5 font-medium text-slate-800">
+                              "{insight.question}"
+                            </p>
+                          </div>
+
+                          {/* Answer / Finding */}
+                          <div className="mt-3 text-xs leading-5 text-slate-700 whitespace-pre-line">
+                            {renderInsightText(insight.answer)}
+                          </div>
+
+                          {/* Embedded Chart if present */}
+                          {insight.chart && Array.isArray(insight.chart.data) && insight.chart.data.length > 0 && (
+                            <div className="mt-3 overflow-hidden rounded-xl border border-slate-100 bg-slate-50/50 p-2">
+                              <AnalysisChart chart={insight.chart} />
+                            </div>
+                          )}
+
+                          {/* Metrics if ML */}
+                          {insight.metrics && (
+                            <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+                              {insight.metrics.accuracy && (
+                                <span className="rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">
+                                  Accuracy: {insight.metrics.accuracy}%
+                                </span>
+                              )}
+                              {insight.metrics.f1_score && (
+                                <span className="rounded-md border border-blue-100 bg-blue-50 px-2 py-1 font-semibold text-blue-700">
+                                  F1: {insight.metrics.f1_score}
+                                </span>
+                              )}
+                              {insight.metrics.r2_score && (
+                                <span className="rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 font-semibold text-indigo-700">
+                                  R²: {insight.metrics.r2_score}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Card Footer Actions */}
+                        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                          <button
+                            onClick={(e) => handleCopyInsight(insight, e)}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 transition cursor-pointer"
+                          >
+                            {copiedId === insight.id ? (
+                              <>
+                                <Check size={13} className="text-emerald-600" />
+                                <span className="text-emerald-600 font-semibold">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={13} />
+                                <span>Copy Finding</span>
+                              </>
+                            )}
+                          </button>
+
+                          {insight.dataset_id && (
+                            <button
+                              onClick={() => navigate(`/app/datasets/${insight.dataset_id}`)}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition cursor-pointer"
+                            >
+                              <span>Open in Chat</span>
+                              <ExternalLink size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-6 flex min-h-64 items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 text-center">
+                    <div>
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                        <Bookmark size={22} />
+                      </div>
+                      <h3 className="mt-4 text-sm font-bold text-slate-900">
+                        {insightSearch ? "No matching insights found" : "No saved insights yet"}
+                      </h3>
+                      <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-400">
+                        {insightSearch
+                          ? "Try a different search query."
+                          : "While analyzing your data in the workspace, click the 'Save insight' button on any AI answer to bookmark it here."}
+                      </p>
+                      {!insightSearch && (
+                        <button
+                          onClick={() => handleTabChange("datasets")}
+                          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition cursor-pointer"
+                        >
+                          <Database size={14} />
+                          <span>Explore your datasets</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
