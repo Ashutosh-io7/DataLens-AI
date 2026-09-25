@@ -104,44 +104,16 @@ function AppShell() {
     setSearchParams({ tab: tabKey });
   };
 
-  const handleFileSelect = (event) => {
-    const file = event.target.files[0];
-
+  const handleStartAnalyzing = async (fileToUpload) => {
+    const file = fileToUpload || selectedFile;
     if (!file) return;
-
-    const validExtensions = [".csv", ".xlsx"];
-    const extension = file.name
-      .slice(file.name.lastIndexOf("."))
-      .toLowerCase();
-
-    if (!validExtensions.includes(extension)) {
-      setError("Please upload a CSV or XLSX file.");
-      setSelectedFile(null);
-      return;
-    }
-
-    setError("");
-    setSelectedFile(file);
-  };
-
-  const removeFile = () => {
-    setSelectedFile(null);
-    setError("");
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  }; 
-
-  const handleStartAnalyzing = async () => {
-    if (!selectedFile) return;
 
     try {
       setUploading(true);
       setError("");
 
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      formData.append("file", file);
 
       const response = await fetch(endpoints.uploadDataset, {
         method: "POST",
@@ -154,11 +126,49 @@ function AppShell() {
         throw new Error(data.detail || "Unable to upload dataset.");
       }
 
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      setSelectedFile(null);
+
       navigate(`/app/datasets/${data.dataset_id}`);
     } catch (err) {
       setError(err.message || "Unable to upload dataset.");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    const validExtensions = [".csv", ".xlsx", ".xls"];
+    const extension = file.name
+      .slice(file.name.lastIndexOf("."))
+      .toLowerCase();
+
+    if (!validExtensions.includes(extension)) {
+      setError("Please upload a CSV or XLSX file.");
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
+    setError("");
+    setSelectedFile(file);
+    handleStartAnalyzing(file);
+  };
+
+  const removeFile = () => {
+    setSelectedFile(null);
+    setError("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -360,6 +370,46 @@ function AppShell() {
           onChange={handleFileSelect}
           className="hidden"
         />
+
+        {/* Global Uploading Modal Overlay */}
+        {uploading && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl text-center border border-slate-100">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-inner">
+                <Upload size={26} className="animate-bounce" />
+              </div>
+              <h3 className="mt-4 text-base font-bold text-slate-900">
+                Uploading & Profiling Dataset
+              </h3>
+              <p className="mt-1 text-xs text-slate-500 font-medium truncate px-4">
+                {selectedFile?.name || "Processing your file..."}
+              </p>
+              <div className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-slate-50 py-2.5 px-3 text-xs font-semibold text-blue-600 border border-slate-100">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                <span>Computing schema, stats & quality score...</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Global Upload Error Modal */}
+        {error && !uploading && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl text-center border border-red-100">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+                <X size={22} />
+              </div>
+              <h3 className="mt-4 text-base font-bold text-slate-900">Upload Failed</h3>
+              <p className="mt-2 text-xs text-slate-600 px-2 leading-relaxed">{error}</p>
+              <button
+                onClick={() => setError("")}
+                className="mt-5 w-full rounded-xl bg-slate-900 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer shadow-xs"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Dashboard Main Content */}
         <main className="flex-1 p-6 lg:p-8">
