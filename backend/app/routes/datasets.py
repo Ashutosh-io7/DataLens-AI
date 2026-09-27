@@ -1,11 +1,13 @@
 from typing import Any
-from fastapi import APIRouter, File, HTTPException, UploadFile 
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile 
 from pydantic import BaseModel 
 from app.services.query_service import answer_question 
 
 from sqlalchemy import text
 from app.core.database import SessionLocal
 from app.core.config import settings
+from app.core.security import get_current_user
+from app.models.user import User
 
 from app.services.dataset_service import (
     delete_dataset,
@@ -36,8 +38,19 @@ class QueryRequest(BaseModel):
     context: dict[str, Any] | None = None 
 
 
+def _ensure_owner(metadata: dict, current_user: User) -> None:
+    """A dataset only belongs to the user who uploaded it — including
+    datasets uploaded before accounts existed, which now belong to no one
+    and stay hidden until reassigned (see migration note)."""
+    if metadata.get("user_id") != str(current_user.id):
+        raise DatasetNotFoundError("Dataset not found")
+
+
 @router.post("/upload")
-async def upload_dataset(file: UploadFile = File(...)):
+async def upload_dataset(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
     if not file.filename:
         raise HTTPException(
             status_code=400,
@@ -66,6 +79,7 @@ async def upload_dataset(file: UploadFile = File(...)):
             columns = len(df.columns),
             quality_score = profile.get("quality_score"),
             profile = profile,
+            user_id = str(current_user.id),
         )
 
         preview = (
@@ -96,7 +110,7 @@ async def upload_dataset(file: UploadFile = File(...)):
 
 
 @router.get("/charts") 
-def get_charts(limit: int = 60): 
+def get_charts(limit: int = 60, current_user: User = Depends(get_current_user)): 
     return {"charts": get_all_charts(limit=limit)}
 
 @router.get("/health")
@@ -117,13 +131,13 @@ def health_check():
     }
 
 @router.get("/{dataset_id}")
-def get_dataset(dataset_id: str):
+def get_dataset(dataset_id: str, current_user: User = Depends(get_current_user)):
     try:
-        dataset_path = get_dataset_path(dataset_id)
-
-        content = dataset_path.read_bytes()
-
         metadata = get_dataset_metadata(dataset_id)
+        _ensure_owner(metadata, current_user)
+
+        dataset_path = get_dataset_path(dataset_id)
+        content = dataset_path.read_bytes()
 
         df = read_dataset(
             filename=dataset_path.name,
@@ -158,6 +172,9 @@ def get_dataset(dataset_id: str):
     except FileNotFoundError:
         raise DatasetNotFoundError("Dataset not found") 
 
+    except DatasetNotFoundError:
+        raise
+
     except Exception as exc:
         raise InvalidDatasetError(f"Unable to load dataset : {str(exc)}")  
 
@@ -165,10 +182,13 @@ def get_dataset(dataset_id: str):
 def query_dataset(
     dataset_id: str,
     request: QueryRequest,
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        dataset_path = get_dataset_path(dataset_id)
+        metadata = get_dataset_metadata(dataset_id)
+        _ensure_owner(metadata, current_user)
 
+        dataset_path = get_dataset_path(dataset_id)
         content = dataset_path.read_bytes()
 
         df = read_dataset(
@@ -200,33 +220,42 @@ def query_dataset(
     except FileNotFoundError:
         raise DatasetNotFoundError("Dataset not found.")
 
-    except HTTPException:
+    except (HTTPException, DatasetNotFoundError):
         raise
 
     except Exception as exc:
         raise InvalidDatasetError(f"Unable to analyze dataset: {str(exc)}")  
 
 @router.get("/{dataset_id}/conversation")
-def get_conversation(dataset_id: str):
+def get_conversation(dataset_id: str, current_user: User = Depends(get_current_user)):
+    metadata = get_dataset_metadata(dataset_id)
+    _ensure_owner(metadata, current_user)
+
     conv = get_or_create_conversation(dataset_id)
     if not conv:
         return {"conversation_id": None, "dataset_id": dataset_id, "messages": []}
     return conv
 
 @router.delete("/{dataset_id}/conversation")
-def reset_conversation(dataset_id: str):
+def reset_conversation(dataset_id: str, current_user: User = Depends(get_current_user)):
+    metadata = get_dataset_metadata(dataset_id)
+    _ensure_owner(metadata, current_user)
+
     cleared = clear_conversation(dataset_id)
     return {"cleared": cleared}
 
 @router.delete("/{dataset_id}")
-def remove_dataset(dataset_id: str):
+def remove_dataset(dataset_id: str, current_user: User = Depends(get_current_user)):
+    metadata = get_dataset_metadata(dataset_id)
+    _ensure_owner(metadata, current_user)
+
     deleted = delete_dataset(dataset_id)
     if not deleted:
         raise DatasetNotFoundError("Dataset not found or could not be removed.")
     return {"message": "Dataset successfully deleted.", "dataset_id": dataset_id}
 
 @router.get("")
-def get_datasets():
+def get_datasets(current_user: User = Depends(get_current_user)):
     return {
-        "datasets": list_dataset_metadata()
+        "datasets": list_dataset_metadata(user_id=str(current_user.id))
     }

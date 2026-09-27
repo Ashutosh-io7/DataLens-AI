@@ -3,7 +3,19 @@
 // Set VITE_API_URL in your .env file to override for production.
 
 export const API_BASE =
-  import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
+  import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000"; 
+
+// Wraps fetch() to automatically attach the logged-in user's token.
+// Use this for every dataset/conversation/chart call; plain fetch() is
+// still fine for signup/login/health, which don't require a token.
+export function authFetch(url, options = {}) {
+  const token = localStorage.getItem("datalens_token");
+  const headers = {
+    ...(options.headers || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  return fetch(url, { ...options, headers });
+}
 
 export const endpoints = {
   datasets:          `${API_BASE}/api/datasets`,

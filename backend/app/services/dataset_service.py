@@ -186,6 +186,7 @@ def save_dataset(
     columns: int,
     quality_score: float | None = None,
     profile: dict | None = None,
+    user_id: str | None = None, 
 ) -> dict:
     dataset_id = str(uuid4())
     extension = filename.rsplit(".", 1)[-1].lower()
@@ -199,6 +200,7 @@ def save_dataset(
 
     metadata = {
         "dataset_id": dataset_id,
+        "user_id": user_id, 
         "filename": filename,
         "extension": extension,
         "rows": rows,
@@ -219,6 +221,7 @@ def save_dataset(
         try:
             db_dataset = Dataset(
                 id=dataset_id,
+                user_id=user_id, 
                 filename=filename,
                 extension=extension,
                 rows=rows,
@@ -264,12 +267,15 @@ def get_dataset_metadata(dataset_id: str) -> dict:
     return json.loads(metadata_path.read_text(encoding="utf-8"))
 
 
-def list_dataset_metadata() -> list[dict]:
+def list_dataset_metadata(user_id: str | None = None) -> list[dict]:
     # Check database first
     try:
         db = SessionLocal()
         try:
-            db_datasets = db.query(Dataset).order_by(Dataset.created_at.desc()).all()
+            query = db.query(Dataset)
+            if user_id is not None:
+                query = query.filter(Dataset.user_id == user_id)
+            db_datasets = query.order_by(Dataset.created_at.desc()).all()
             if db_datasets:
                 return [d.to_dict() for d in db_datasets]
         finally:
@@ -282,6 +288,8 @@ def list_dataset_metadata() -> list[dict]:
     for metadata_path in settings.metadata_dir.glob("*.json"):
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if user_id is not None and metadata.get("user_id") != user_id:
+                continue
             datasets.append(metadata)
         except (json.JSONDecodeError, OSError):
             continue

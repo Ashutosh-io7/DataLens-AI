@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import AppSidebar from "./AppSidebar"; 
 import AnalysisChart from "./AnalysisChart";
-import { endpoints } from "../api"; 
+import { endpoints, authFetch } from "../api"; 
 import { useAuth } from "../context/AuthContext"; 
 import { getSavedInsights, saveInsight, removeInsight } from "../utils/insightsStorage";
 
@@ -72,7 +72,7 @@ function AppShell() {
   useEffect(() => {
     if (activeTab === "charts") {
       setLoadingCharts(true);
-      fetch(endpoints.charts)
+      authFetch(endpoints.charts)
        .then((res) => res.json())
        .then((data) => setCharts(data.charts || []))
        .catch(() => setCharts([])) 
@@ -115,7 +115,7 @@ function AppShell() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch(endpoints.uploadDataset, {
+      const response = await authFetch(endpoints.uploadDataset, {
         method: "POST",
         body: formData,
       });
@@ -175,7 +175,7 @@ function AppShell() {
   const fetchDatasets = async () => {
     try {
       setLoadingDatasets(true);
-      const res = await fetch(endpoints.datasets);
+      const res = await authFetch(endpoints.datasets);
       if (res.ok) {
         const data = await res.json();
         setRecentDatasets(data.datasets || []);
@@ -201,7 +201,7 @@ function AppShell() {
     if (!window.confirm("Are you sure you want to delete this dataset?")) return;
 
     try {
-      const res = await fetch(endpoints.deleteDataset(datasetId), {
+      const res = await authFetch(endpoints.deleteDataset(datasetId), {
         method: "DELETE",
       });
       if (res.ok) {

@@ -21,7 +21,7 @@ import {
 } from "lucide-react"; 
 import AnalysisChart from "./AnalysisChart"; 
 import AppSidebar from "./AppSidebar";
-import { endpoints } from "../api"; 
+import { endpoints, authFetch } from "../api"; 
 import { getSavedInsights, saveInsight, removeInsight } from "../utils/insightsStorage"; 
 
 // Turns "**bold**" segments into real bold text for chat messages
@@ -131,7 +131,7 @@ function DatasetWorkspace() {
         setLoading(true);
         setError("");
 
-        const response = await fetch(endpoints.getDataset(id));
+        const response = await authFetch(endpoints.getDataset(id));
         const dataset = await response.json();
 
         if (!response.ok) {
@@ -146,7 +146,7 @@ function DatasetWorkspace() {
 
         // Fetch persisted conversation history from PostgreSQL
         try {
-          const convRes = await fetch(endpoints.getConversation(id));
+          const convRes = await authFetch(endpoints.getConversation(id));
           if (convRes.ok) {
             const convData = await convRes.json();
             if (convData.messages && convData.messages.length > 0) {
@@ -169,7 +169,7 @@ function DatasetWorkspace() {
   const handleClearChat = async () => {
     if (!window.confirm("Are you sure you want to reset this conversation history?")) return;
     try {
-      await fetch(endpoints.clearConversation(id), { method: "DELETE" });
+      await authFetch(endpoints.clearConversation(id), { method: "DELETE" });
     } catch {
       // offline/file storage tolerance
     }
@@ -206,7 +206,7 @@ function DatasetWorkspace() {
     const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s safety net
 
     try {
-      const response = await fetch(endpoints.queryDataset(id), {
+      const response = await authFetch(endpoints.queryDataset(id), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

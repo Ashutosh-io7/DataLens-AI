@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import uuid
 
-from sqlalchemy import Column, String, Integer, DateTime, Float
+from sqlalchemy import Column, String, Integer, DateTime, Float, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from app.core.database import Base
@@ -11,6 +11,7 @@ class Dataset(Base):
     __tablename__ = "datasets"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     filename = Column(String, nullable=False)
     extension = Column(String, nullable=False)
     rows = Column(Integer, nullable=False)
@@ -26,6 +27,7 @@ class Dataset(Base):
     def to_dict(self) -> dict:
         return {
             "dataset_id": str(self.id),
+            "user_id": str(self.user_id) if self.user_id else None,
             "filename": self.filename,
             "extension": self.extension,
             "rows": self.rows,
