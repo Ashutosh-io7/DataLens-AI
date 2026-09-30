@@ -60,12 +60,13 @@ def execute_plan(plan: dict[str, Any], df: pd.DataFrame, question: str) -> dict[
 
     # 1. Row count
     if intent == "row_count":
-        cnt = len(df)
+        row_cnt = len(df)
+        col_cnt = len(df.columns)
         return {
-            "answer": f"The dataset contains **{cnt:,}** rows (records).",
+            "answer": f"The dataset contains **{row_cnt:,} rows** (records) and **{col_cnt} columns** (attributes).",
             "analysis_type": "row_count",
-            "value": cnt,
-            "explanation": f"Calculated the exact record count across all {len(df.columns)} columns in the loaded dataset.",
+            "value": row_cnt,
+            "explanation": f"Calculated the exact record and column counts for the loaded dataset.",
             "suggested_follow_ups": [
                 "What columns are in this dataset?",
                 "Are there any duplicate rows?",
@@ -133,16 +134,46 @@ def execute_plan(plan: dict[str, Any], df: pd.DataFrame, question: str) -> dict[
             result["chart"] = missing_values_chart(missing_list[:12])
         return result
 
-    # 4. Duplicate count
+    # 4. Duplicate count — now shows the actual duplicate records
     if intent == "duplicate_count":
         dups = int(df.duplicated().sum())
         pct = round((dups / max(len(df), 1)) * 100, 2)
+        if dups == 0:
+            return {
+                "answer": "No duplicate rows were found. The dataset is completely unique across all records.",
+                "analysis_type": "duplicate_count",
+                "value": 0,
+                "explanation": "Checked row-wise exact equality across all columns.",
+                "suggested_follow_ups": ["Show missing values", "How many rows in dataset?"],
+            }
+
+        dup_df = df[df.duplicated(keep=False)].head(20)
+        id_col = next(
+            (c for c in df.columns if any(k in c.lower() for k in ["name", "car", "model", "product", "id", "title"])),
+            df.columns[0],
+        )
+        show_cols = list(dup_df.columns[:6])
+        headers = " | ".join(str(c) for c in show_cols)
+        divs = " | ".join("---" for _ in show_cols)
+        rows_md = []
+        for _, row in dup_df.iterrows():
+            row_vals = [str(row[c]) for c in show_cols]
+            rows_md.append("| " + " | ".join(row_vals) + " |")
+        table_md = f"| {headers} |\n| {divs} |\n" + "\n".join(rows_md)
+
         return {
-            "answer": f"Found **{dups:,}** duplicate rows ({pct}% of total records).",
+            "answer": (
+                f"Found **{dups:,} duplicate rows** ({pct}% of total records). "
+                f"Here are the duplicated records:\n\n{table_md}"
+            ),
             "analysis_type": "duplicate_count",
             "value": dups,
-            "explanation": "Checked row-wise exact equality across all columns.",
-            "suggested_follow_ups": ["Show missing values", "How many rows in dataset?"],
+            "explanation": "Checked row-wise exact equality across all columns and returned the matching duplicate records.",
+            "suggested_follow_ups": [
+                f"What is the distribution of {id_col}?",
+                "Show missing values",
+                "How many rows in dataset?",
+            ],
         }
 
     # 5. Filter count (e.g., 'how many Movie are there')
@@ -666,21 +697,38 @@ def analyze_question(
     question: str,
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    # SMART ROUTING: Rule-based planner runs FIRST for well-known deterministic intents.
+    # Only escalates to the LLM when rule-based returns 'unsupported' (complex/out-of-box questions).
+    rule_plan = plan_query(question, df, context=context)
+    rule_intent = rule_plan.get("intent", "unsupported")
+
+    DETERMINISTIC_INTENTS = {
+        "row_count", "column_count", "column_list",
+        "missing_values", "duplicate_count", "filter_count",
+        "correlation", "aggregation", "grouped_aggregation",
+        "value_counts", "distribution", "summary_statistics",
+        "dataset_summary", "machine_learning",
+    }
+
+    if rule_intent in DETERMINISTIC_INTENTS:
+        result = execute_plan(rule_plan, df, question)
+        result["plan"] = rule_plan
+        result["planned_by"] = "rule_based"
+        return result
+
+    # Rule-based could not handle it — escalate to LLM for dynamic/out-of-box queries
     plan: dict[str, Any] | None = None
     planned_by = "rule_based"
-
     try:
-        plan = get_llm_plan(question, df)
-        if plan.get("intent") and plan["intent"] != "unsupported":
+        llm_plan = get_llm_plan(question, df)
+        if llm_plan.get("intent") and llm_plan["intent"] != "unsupported":
+            plan = llm_plan
             planned_by = "llm"
-        else:
-            plan = None  # let the rule-based planner have a try instead
     except Exception as exc:
         print(f"LLM planner unavailable, falling back to rule-based planner: {exc}")
-        plan = None
 
     if plan is None:
-        plan = plan_query(question, df, context=context)
+        plan = rule_plan
         planned_by = "rule_based"
 
     result = execute_plan(plan, df, question)

@@ -70,8 +70,8 @@ def plan_query(
     ]):
         return {"intent": "summary_statistics"}
 
-    # 1c. Row count / Dataset size
-    if any(p in norm_q for p in ["how many rows", "number of rows", "total rows", "row count", "how many records", "how big is"]):
+    # 1c. Row count / Dataset size (also catches "rows and columns" together)
+    if any(p in norm_q for p in ["how many rows", "number of rows", "total rows", "row count", "how many records", "how big is", "rows and columns", "shape of"]):
         return {"intent": "row_count", "operation": "count"}
 
     # 2. Column count / list
@@ -187,10 +187,34 @@ def plan_query(
         if not group_col and context.get("group_column") in df.columns:
             group_col = context["group_column"]
 
-    # 10. Check if this is a value count / frequency query
+    # 10. Numeric threshold filter — e.g. "cars with selling price above 10" / "rows where price > 5"
+    threshold_match = re.search(r"\b(above|over|more than|greater than|below|under|less than|>|<)\s+([\d.]+)", norm_q)
+    if threshold_match and target_col and target_col in numeric_cols:
+        direction = threshold_match.group(1)
+        threshold_value = float(threshold_match.group(2))
+        op = "gt" if any(w in direction for w in ["above", "over", "more", "greater", ">"]) else "lt"
+        return {
+            "intent": "dynamic_pandas",
+            "pandas_code": (
+                f"result = df[df['{target_col}'] {'>' if op == 'gt' else '<'} {threshold_value}]"
+                f"[list(df.columns[:7])]"
+                f".sort_values('{target_col}', ascending={'False' if op == 'gt' else 'True'})"
+                f".head({n})"
+            ),
+            "explanation": f"Filtered rows where {target_col} is {'above' if op == 'gt' else 'below'} {threshold_value}.",
+            "suggested_follow_ups": [
+                f"What is the average {target_col}?",
+                f"Distribution of {target_col}",
+            ],
+        }
+
+    # 11. Check if this is a value count / frequency query
     if any(p in norm_q for p in ["most common", "most frequent", "top", "distribution", "breakdown", "frequency", "count of"]):
-        if target_col or group_col:
-            active_col = group_col or target_col
+        # Bug fix: "Top 10 Cars" — if no column matched, use the first categorical column (likely the item name)
+        active_col = group_col or target_col
+        if not active_col and categorical_cols:
+            active_col = categorical_cols[0]
+        if active_col:
             return {
                 "intent": "value_counts",
                 "target_column": active_col,
