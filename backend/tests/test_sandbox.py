@@ -70,3 +70,21 @@ class TestSandboxExecution:
     def test_blocks_execution_of_unsafe_code(self, sample_df):
         with pytest.raises(ValueError, match="Security validation error"):
             execute_pandas_query("import sys", sample_df)
+
+    def test_executes_conditional_ifexp_query(self, sample_df):
+        code = "result = round(float(df['sales'].mean()), 2) if len(df) > 0 else 0.0"
+        result = execute_pandas_query(code, sample_df)
+        assert result == round(float(sample_df['sales'].mean()), 2)
+
+    def test_executes_dict_output_query(self, sample_df):
+        code = "result = {'tech_sales': df[df['category'] == 'Tech']['sales'].sum(), 'count': len(df)}"
+        result = execute_pandas_query(code, sample_df)
+        assert isinstance(result, dict)
+        assert result["tech_sales"] == 950.0
+        assert result["count"] == 6
+
+    def test_executes_math_ratio_query(self, sample_df):
+        code = "result = round(float(df['sales'].max() / df['sales'].min()), 2)"
+        result = execute_pandas_query(code, sample_df)
+        expected = round(float(sample_df['sales'].max() / sample_df['sales'].min()), 2)
+        assert result == expected

@@ -16,8 +16,13 @@ from app.services.visualization_service import (
     value_counts_chart,
 )
 from app.services.query_planner import plan_query
-from app.services.ml_service import train_and_explain_model 
-from app.services.llm_service import generate_executive_briefing, get_llm_plan 
+from app.services.ml_service import train_and_explain_model
+from app.services.llm_service import (
+    generate_executive_briefing,
+    get_llm_plan,
+    repair_pandas_code,
+    synthesize_analyst_answer,
+)
 from app.services.code_executor import execute_pandas_query 
 
 
@@ -419,40 +424,78 @@ def execute_plan(plan: dict[str, Any], df: pd.DataFrame, question: str) -> dict[
                 "suggested_follow_ups": ["How many rows in dataset?", "Show columns list"],
             }
 
-    # 11. Dynamic Pandas Execution (Universal Data Scientist)
+    # 11. Dynamic Pandas Execution (Universal Data Scientist with Auto-Repair & Synthesis)
     if intent == "dynamic_pandas":
         code = plan.get("pandas_code")
         if code:
+            res = None
+            exec_error = None
             try:
                 res = execute_pandas_query(code, df)
+            except Exception as first_err:
+                exec_error = str(first_err)
+                print(f"dynamic_pandas initial attempt failed: {first_err}. Attempting auto-repair...")
+                try:
+                    repaired_code = repair_pandas_code(question, code, exec_error, df)
+                    if repaired_code:
+                        res = execute_pandas_query(repaired_code, df)
+                        code = repaired_code
+                        exec_error = None
+                except Exception as second_err:
+                    exec_error = str(second_err)
+                    print(f"dynamic_pandas auto-repair attempt failed: {second_err}")
+
+            if res is not None:
                 explanation = plan.get("explanation") or "Calculated directly using safe, deterministic Pandas code."
                 follow_ups = plan.get("suggested_follow_ups") or [
                     "What are the top categories?",
                     "Show summary statistics",
                 ]
 
-                # Scalar result (int, float, bool)
-                if isinstance(res, (int, float, np.integer, np.floating)):
-                    num_val = _safe_number(res)
-                    if num_val is None:
-                        ans_text = "The calculation evaluated to no valid numeric value (NaN)."
-                    elif isinstance(res, float) and 0.0 <= res <= 100.0 and ("percent" in question.lower() or "%" in question):
-                        ans_text = f"The calculated result is **{num_val:.2f}%**."
-                    else:
-                        ans_text = f"The calculated result is **{num_val:,}**."
+                # Dictionary result (multi-metric or comparison output)
+                if isinstance(res, dict):
+                    ai_answer = synthesize_analyst_answer(question, res, df, explanation)
+                    if not ai_answer:
+                        items = [
+                            f"- **{k}**: {v:,}" if isinstance(v, (int, float)) and v is not None else f"- **{k}**: {v}"
+                            for k, v in res.items()
+                        ]
+                        ai_answer = "**Analysis Breakdown:**\n\n" + "\n".join(items)
 
                     return {
-                        "answer": ans_text,
+                        "answer": ai_answer,
+                        "analysis_type": "dynamic_pandas",
+                        "value": res,
+                        "explanation": explanation,
+                        "suggested_follow_ups": follow_ups,
+                    }
+
+                # Scalar result (int, float)
+                if isinstance(res, (int, float, np.integer, np.floating)):
+                    num_val = _safe_number(res)
+                    ai_answer = synthesize_analyst_answer(question, num_val, df, explanation)
+                    if not ai_answer:
+                        if num_val is None:
+                            ai_answer = "The calculation evaluated to no valid numeric value (NaN)."
+                        elif isinstance(res, float) and 0.0 <= res <= 100.0 and ("percent" in question.lower() or "%" in question):
+                            ai_answer = f"The calculated result is **{num_val:.2f}%**."
+                        else:
+                            ai_answer = f"The calculated result is **{num_val:,}**."
+
+                    return {
+                        "answer": ai_answer,
                         "analysis_type": "dynamic_pandas",
                         "value": num_val,
                         "explanation": explanation,
                         "suggested_follow_ups": follow_ups,
                     }
 
+                # Boolean result
                 if isinstance(res, (bool, np.bool_)):
                     status_bool = "Yes (True)" if res else "No (False)"
+                    ai_answer = synthesize_analyst_answer(question, status_bool, df, explanation) or f"The query condition evaluated to **{status_bool}**."
                     return {
-                        "answer": f"The query condition evaluated to **{status_bool}**.",
+                        "answer": ai_answer,
                         "analysis_type": "dynamic_pandas",
                         "value": bool(res),
                         "explanation": explanation,
@@ -477,12 +520,15 @@ def execute_plan(plan: dict[str, Any], df: pd.DataFrame, question: str) -> dict[
                     ]
                     list_str = "\n".join(list_items)
 
+                    lead_insight = synthesize_analyst_answer(question, clean_s.to_dict(), df, explanation)
+                    ans_text = f"{lead_insight}\n\n**Analysis Breakdown:**\n\n{list_str}" if lead_insight else f"**Analysis Breakdown:**\n\n{list_str}"
+
                     chart = None
                     if all(isinstance(v["value"], (int, float)) for v in values if v["value"] is not None):
                         chart = grouped_chart(str(clean_s.index.name or "Category"), values, "Value")
 
                     return {
-                        "answer": f"**Analysis Breakdown:**\n\n{list_str}",
+                        "answer": ans_text,
                         "analysis_type": "dynamic_pandas",
                         "values": values,
                         "chart": chart,
@@ -531,14 +577,26 @@ def execute_plan(plan: dict[str, Any], df: pd.DataFrame, question: str) -> dict[
                         "suggested_follow_ups": follow_ups,
                     }
 
+                ai_answer = synthesize_analyst_answer(question, str(res), df, explanation) or f"Analysis output: **{str(res)}**"
                 return {
-                    "answer": f"Analysis output: **{str(res)}**",
+                    "answer": ai_answer,
                     "analysis_type": "dynamic_pandas",
                     "explanation": explanation,
                     "suggested_follow_ups": follow_ups,
                 }
-            except Exception as e:
-                print(f"dynamic_pandas execution error: {e}")
+            else:
+                return {
+                    "answer": (
+                        f"I analyzed your question against the schema, but could not compute the exact result: {exec_error or 'execution error'}. "
+                        f"Available columns are: {', '.join(df.columns[:8])}."
+                    ),
+                    "analysis_type": "dynamic_pandas_error",
+                    "explanation": "Pandas execution failed even after an automated self-repair attempt.",
+                    "suggested_follow_ups": [
+                        "Show column list",
+                        "Show summary statistics",
+                    ],
+                }
 
     # 12. Summary Statistics
     if intent == "summary_statistics":

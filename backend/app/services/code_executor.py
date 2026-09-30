@@ -26,7 +26,7 @@ ALLOWED_ATTRS = {
     "mean", "sum", "median", "min", "max", "std", "var", "count", "nunique",
     "unique", "value_counts", "describe", "corr", "cov", "mode", "quantile",
     "skew", "kurt", "cumsum", "cumprod", "cummax", "cummin", "rank", "diff",
-    "pct_change",
+    "pct_change", "div", "mul", "add", "sub", "rdiv", "rmul", "radd", "rsub",
     # Grouping / reshaping (no merge/join/concat — there's only ever one
     # dataframe in scope here, so those only enable expensive self-joins
     # with no real upside)
@@ -35,7 +35,7 @@ ALLOWED_ATTRS = {
     "nsmallest", "pivot_table", "pivot", "melt",
     # Type conversion & rounding — no file/network I/O in this list
     "astype", "round", "abs", "to_numeric", "to_datetime", "to_dict",
-    "to_list", "tolist", "to_frame", "to_numpy",
+    "to_list", "tolist", "to_frame", "to_numpy", "map",
     # String accessor
     "str", "contains", "lower", "upper", "strip", "split", "replace",
     "startswith", "endswith", "len",
@@ -70,6 +70,7 @@ class _SafetyVisitor(ast.NodeVisitor):
         ast.USub, ast.UAdd, ast.Not, ast.Invert, ast.And, ast.Or,
         ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.In, ast.NotIn,
         ast.ListComp, ast.comprehension,
+        ast.IfExp, ast.FormattedValue, ast.JoinedStr,
     )
 
     def generic_visit(self, node):
@@ -93,7 +94,7 @@ class _SafetyVisitor(ast.NodeVisitor):
         if isinstance(node.func, ast.Attribute):
             pass
         elif isinstance(node.func, ast.Name):
-            if node.func.id not in {"round", "len", "abs", "str", "int", "float", "min", "max", "sum", "sorted", "list", "dict"}:
+            if node.func.id not in {"round", "len", "abs", "str", "int", "float", "bool", "min", "max", "sum", "sorted", "list", "dict"}:
                 raise ValueError(f"Calling '{node.func.id}' is not permitted.")
         else:
             raise ValueError("This kind of function call is not permitted.")

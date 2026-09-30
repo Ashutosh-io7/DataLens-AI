@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import concurrent.futures
-from typing import Literal, Optional
+import re
+from typing import Any, Literal, Optional
 import pandas as pd
 from pydantic import BaseModel, Field
 
@@ -241,3 +242,112 @@ def generate_executive_briefing(df: pd.DataFrame, question: str) -> str:
             f"The dataset contains **{len(df):,}** records across **{len(df.columns)}** attributes. "
             f"Key numeric indicators include {', '.join(numeric_cols[:3]) if numeric_cols else 'no numerical columns'}."
         )
+
+
+def _extract_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                parts.append(str(item["text"]))
+            elif hasattr(item, "text"):
+                parts.append(str(item.text))
+            else:
+                parts.append(str(item))
+        return "".join(parts).strip()
+    return str(content).strip()
+
+
+def repair_pandas_code(
+    question: str,
+    broken_code: str,
+    error_msg: str,
+    df: pd.DataFrame,
+) -> str | None:
+    """
+    Asks Gemini to quickly correct a broken pandas snippet that failed
+    execution or security validation.
+    """
+    if not _HAS_GENAI or not settings.google_api_key:
+        return None
+
+    columns_list = list(df.columns)
+    prompt = (
+        "You are an expert Python data scientist. A pandas snippet failed execution.\n"
+        f"Original Question: '{question}'\n"
+        f"Broken Code: `{broken_code}`\n"
+        f"Error Encountered: {error_msg}\n\n"
+        f"Available DataFrame Columns (exact names and casing): {columns_list}\n\n"
+        "Rules:\n"
+        "1. Write ONLY the corrected python code snippet.\n"
+        "2. The snippet MUST assign its final answer to variable `result`.\n"
+        "3. Only use `df`, `pd`, `np`. No imports, no open(), no network.\n"
+        "4. Output ONLY raw executable code. No markdown fences, no explanations.\n"
+    )
+
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model=settings.llm_model,
+            google_api_key=settings.google_api_key,
+            timeout=10,
+            max_retries=0,
+        )
+        res = llm.invoke(prompt)
+        cleaned = _extract_text(res.content)
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:python)?\s*", "", cleaned)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+        return cleaned.strip()
+    except Exception as exc:
+        print(f"Auto-repair LLM call failed: {exc}")
+        return None
+
+
+def synthesize_analyst_answer(
+    question: str,
+    calculation_result: Any,
+    df: pd.DataFrame,
+    explanation_context: str | None = None,
+) -> str | None:
+    """
+    Stage 2 of the AI Analyst:
+    Takes the 100% deterministic calculation from Pandas and synthesizes
+    a senior data analyst response. Zero hallucinations: strictly grounded on the calculated result.
+    """
+    if not _HAS_GENAI or not settings.google_api_key:
+        return None
+
+    if isinstance(calculation_result, (pd.DataFrame, pd.Series)):
+        res_str = calculation_result.to_dict()
+    else:
+        res_str = str(calculation_result)
+
+    prompt = (
+        "You are the Lead AI Data Analyst for DataLens AI.\n"
+        f"User Question: '{question}'\n"
+        f"Exact Pandas Calculation Result (GROUND TRUTH): {res_str}\n"
+        f"Context / Operation: {explanation_context or 'Computed directly over dataset'}\n\n"
+        "Instructions:\n"
+        "1. Provide a direct, professional, 2-3 sentence analytical response.\n"
+        "2. Put key numbers in bold (e.g. **2.29x**, **₹7.47 lakhs**).\n"
+        "3. Provide business/domain context for what the number means.\n"
+        "4. CRITICAL: NEVER invent or hallucinate any numbers. ONLY reference the exact figures provided in the ground truth above.\n"
+        "5. Keep the tone insightful, clear, and executive-ready."
+    )
+
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model=settings.llm_model,
+            google_api_key=settings.google_api_key,
+            timeout=12,
+            max_retries=0,
+        )
+        res = llm.invoke(prompt)
+        return _extract_text(res.content)
+    except Exception as exc:
+        print(f"Analyst synthesis LLM call failed: {exc}")
+        return None
