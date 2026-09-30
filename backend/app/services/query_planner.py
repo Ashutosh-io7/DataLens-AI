@@ -109,9 +109,25 @@ def plan_query(
         if not target:
             # Pick first categorical or last numeric column as candidate target
             target = categorical_cols[0] if categorical_cols else (numeric_cols[-1] if numeric_cols else df.columns[-1])
+
+        pref = None
+        if any(m in norm_q for m in ["linear regression", "linear model", "ols"]):
+            pref = "linear"
+        elif "ridge" in norm_q:
+            pref = "ridge"
+        elif any(m in norm_q for m in ["random forest", "rf"]):
+            pref = "random_forest"
+        elif any(m in norm_q for m in ["knn", "k nearest", "nearest neighbor"]):
+            pref = "knn"
+        elif any(m in norm_q for m in ["xgboost", "xgb", "gradient boost"]):
+            pref = "xgboost"
+        elif any(m in norm_q for m in ["logistic regression", "logistic"]):
+            pref = "logistic"
+
         return {
             "intent": "machine_learning",
             "target_column": target,
+            "preferred_model": pref,
         }
 
     # 6. Extract top / bottom N limit

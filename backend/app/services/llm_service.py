@@ -64,6 +64,10 @@ class QueryPlan(BaseModel):
         default_factory=list,
         description="2-3 relevant follow-up questions the user might want to explore next.",
     )
+    preferred_model: Optional[Literal["linear", "ridge", "random_forest", "knn", "xgboost", "logistic"]] = Field(
+        default=None,
+        description="Optional preferred ML model if user explicitly requested one (e.g. 'linear regression', 'random forest', 'knn', 'xgboost', 'logistic regression').",
+    )
 
 
 def _describe_schema(df: pd.DataFrame) -> str:

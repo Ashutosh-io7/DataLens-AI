@@ -345,40 +345,75 @@ def execute_plan(plan: dict[str, Any], df: pd.DataFrame, question: str) -> dict[
     # 11. Machine Learning & SHAP Feature Importance
     if intent == "machine_learning":
         target = plan.get("target_column")
+        model_pref = plan.get("preferred_model")
         try:
-            ml_res = train_and_explain_model(df, target_col=target)
+            ml_res = train_and_explain_model(df, target_col=target, preferred_model=model_pref)
             task_type = ml_res["task"]
-            metrics = ml_res["metrics"]
+            champion = ml_res["champion"]
+            leaderboard = ml_res["leaderboard"]
             top_feats = ml_res["top_features"]
             lead_feat = top_feats[0]["feature"] if top_feats else "N/A"
 
-            if task_type == "classification":
-                metric_str = f"accuracy: **{metrics.get('accuracy')}%**, weighted F1: **{metrics.get('f1_score')}**"
+            # Format Markdown Leaderboard Table
+            if task_type == "regression":
+                headers = "Rank | Model | R^2 Score | RMSE | MAE | Status"
+                divider = ":---: | :--- | :---: | :---: | :---: | :---"
+                rows = []
+                for entry in leaderboard:
+                    status = "**Best Model (Champion)**" if entry["is_champion"] else ("User Choice" if entry.get("is_user_selected") else "Evaluated")
+                    rows.append(
+                        f"{entry['badge_rank']} | **{entry['name']}** | **{entry.get('r2_score', 0)}** | {entry.get('rmse', 0)} | {entry.get('mae', 0)} | {status}"
+                    )
             else:
-                metric_str = f"R² score: **{metrics.get('r2_score')}**, RMSE: **{metrics.get('rmse')}**"
+                headers = "Rank | Model | Accuracy | Weighted F1 | Status"
+                divider = ":---: | :--- | :---: | :---: | :---"
+                rows = []
+                for entry in leaderboard:
+                    status = "**Best Model (Champion)**" if entry["is_champion"] else ("User Choice" if entry.get("is_user_selected") else "Evaluated")
+                    rows.append(
+                        f"{entry['badge_rank']} | **{entry['name']}** | **{entry.get('accuracy', 0)}%** | {entry.get('f1_score', 0)} | {status}"
+                    )
+
+            table_md = f"| {headers} |\n| {divider} |\n" + "\n".join([f"| {r} |" for r in rows])
+
+            if task_type == "regression":
+                perf_metric = f"R^2 score of **{champion['metrics'].get('r2_score')}** (RMSE: {champion['metrics'].get('rmse')})"
+            else:
+                perf_metric = f"accuracy of **{champion['metrics'].get('accuracy')}%** (weighted F1: {champion['metrics'].get('f1_score')})"
+
+            champ_title = f"**{champion['name']}**"
+            if champion.get("is_user_selected"):
+                champ_title += " *(User Requested)*"
+
+            answer_text = (
+                f"### AutoML Model Leaderboard for `{target}` ({task_type.capitalize()})\n\n"
+                f"{table_md}\n\n"
+                f"**Champion Model:** {champ_title} delivered the strongest predictive fit with a {perf_metric}.\n\n"
+                f"**Key Feature Driver:** Game-theoretic feature importance reveals that **`{lead_feat}`** is the primary driver predicting `{target}`."
+            )
 
             return {
-                "answer": (
-                    f"Trained an **XGBoost {task_type.capitalize()} Model** to predict `{target}` ({metric_str}).\n\n"
-                    f"**SHAP Game-Theoretic Analysis** reveals that `{lead_feat}` is the single most influential driver on prediction outcomes."
-                ),
+                "answer": answer_text,
                 "analysis_type": "machine_learning",
                 "target_column": target,
-                "metrics": metrics,
+                "task": task_type,
+                "champion": champion,
+                "leaderboard": leaderboard,
                 "top_features": top_feats,
                 "chart": ml_res["shap_chart"],
                 "explanation": (
-                    f"Engineered XGBoost gradient-boosted decision trees over {len(ml_res['features_used'])} features. "
-                    "Computed TreeExplainer SHAP values to calculate exact, un-biased feature importance."
+                    f"Trained and evaluated {len(leaderboard)} competitive algorithms on a 20% holdout test split. "
+                    f"Selected {champion['name']} as the champion model and calculated feature importance."
                 ),
                 "suggested_follow_ups": [
                     f"What is the distribution of {target}?",
                     f"Correlation between {lead_feat} and other columns",
+                    f"Show summary statistics",
                 ],
             }
         except Exception as e:
             return {
-                "answer": f"Unable to train model for `{target}`: {str(e)}",
+                "answer": f"Unable to train models for `{target}`: {str(e)}",
                 "analysis_type": "machine_learning_error",
                 "explanation": "Target column could not be encoded or insufficient features were available.",
                 "suggested_follow_ups": ["How many rows in dataset?", "Show columns list"],
