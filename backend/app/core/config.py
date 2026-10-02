@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 # tokens last 24 hours 
 
     google_api_key: str = "" 
-    llm_model: str = "gemini-3.6-flash" 
+    llm_model: str = "gemini-3.5-flash-lite" 
 
     @property
     def upload_dir(self) -> Path:
