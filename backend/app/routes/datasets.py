@@ -208,8 +208,8 @@ def query_dataset(
             context=request.context,
         )
 
-        # Persist conversation turn in PostgreSQL if available
-        persist_turn(dataset_id, request.question, result)
+        # Persist conversation turn (both file fallback and PostgreSQL)
+        persist_turn(dataset_id, request.question, result, user_id=str(current_user.id))
 
         return {
             "dataset_id": dataset_id,
@@ -231,7 +231,7 @@ def get_conversation(dataset_id: str, current_user: User = Depends(get_current_u
     metadata = get_dataset_metadata(dataset_id)
     _ensure_owner(metadata, current_user)
 
-    conv = get_or_create_conversation(dataset_id)
+    conv = get_or_create_conversation(dataset_id, user_id=str(current_user.id))
     if not conv:
         return {"conversation_id": None, "dataset_id": dataset_id, "messages": []}
     return conv

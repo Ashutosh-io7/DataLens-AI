@@ -33,5 +33,9 @@ class Settings(BaseSettings):
     def metadata_dir(self) -> Path:
         return self.data_dir / "metadata"
 
+    @property
+    def conversations_dir(self) -> Path:
+        return self.data_dir / "conversations"
+
 
 settings = Settings()

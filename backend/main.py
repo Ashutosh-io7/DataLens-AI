@@ -18,10 +18,16 @@ from app.models.dataset import Dataset
 from app.models.user import User
 from app.models.conversation import Conversation, Message
 
-try : 
-    Base.metadata.create_all(bind=engine) 
-except Exception as exc : 
-    print(f"⚠️  Could not connect to PostgreSQL — continuing with file-based storage only. ({exc})")
+try:
+    Base.metadata.create_all(bind=engine)
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE datasets ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;"))
+        conn.execute(text("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE SET NULL;"))
+        conn.commit()
+except Exception as exc:
+    print(f"[Database] PostgreSQL migration notice — continuing with file-based storage if needed: {exc}")
 
 app.add_middleware(
     CORSMiddleware,
