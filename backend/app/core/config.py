@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -23,7 +24,14 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 # tokens last 24 hours 
 
     google_api_key: str = "" 
+    gemini_api_key: str = "" 
     llm_model: str = "gemini-3.5-flash-lite" 
+
+    def __init__(self, **values: Any):
+        import os
+        super().__init__(**values)
+        if not self.google_api_key:
+            self.google_api_key = self.gemini_api_key or os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
 
     @property
     def upload_dir(self) -> Path:
