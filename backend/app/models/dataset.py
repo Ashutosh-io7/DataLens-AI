@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import uuid
 
-from sqlalchemy import Column, String, Integer, DateTime, Float, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, Float, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from app.core.database import Base
@@ -19,6 +19,7 @@ class Dataset(Base):
     size_bytes = Column(Integer, nullable=True)
     quality_score = Column(Float, nullable=True)
     profile = Column(JSONB, nullable=True)
+    file_content = Column(Text, nullable=True)  # Base64-encoded raw file content for permanent cloud persistence
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

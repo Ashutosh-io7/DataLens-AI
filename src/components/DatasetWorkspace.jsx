@@ -143,19 +143,6 @@ function DatasetWorkspace() {
         setColumns(dataset.column_names || []);
         setTotalRows(dataset.rows || 0);
         setProfile(dataset.profile || null);
-
-        // Fetch persisted conversation history from PostgreSQL
-        try {
-          const convRes = await authFetch(endpoints.getConversation(id));
-          if (convRes.ok) {
-            const convData = await convRes.json();
-            if (convData.messages && convData.messages.length > 0) {
-              setMessages(convData.messages);
-            }
-          }
-        } catch {
-          // If conversation endpoint is unavailable, preserve default welcome
-        }
       } catch (err) {
         setError(err.message || "Unable to load dataset.");
       } finally {
@@ -163,7 +150,22 @@ function DatasetWorkspace() {
       }
     };
 
+    const loadConversation = async () => {
+      try {
+        const convRes = await authFetch(endpoints.getConversation(id));
+        if (convRes.ok) {
+          const convData = await convRes.json();
+          if (convData.messages && convData.messages.length > 0) {
+            setMessages(convData.messages);
+          }
+        }
+      } catch {
+        // If conversation endpoint is unavailable, preserve default welcome
+      }
+    };
+
     loadDataset();
+    loadConversation();
   }, [id]); 
 
   const handleClearChat = async () => {

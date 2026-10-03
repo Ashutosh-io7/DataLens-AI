@@ -24,6 +24,7 @@ try:
 
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE datasets ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;"))
+        conn.execute(text("ALTER TABLE datasets ADD COLUMN IF NOT EXISTS file_content TEXT;"))
         conn.execute(text("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE SET NULL;"))
         conn.commit()
 except Exception as exc:

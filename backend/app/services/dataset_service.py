@@ -1,6 +1,8 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
+import base64
 from io import BytesIO
 from pathlib import Path
+import uuid
 from uuid import uuid4
 import json 
 import math 
@@ -9,6 +11,7 @@ import pandas as pd
 from app.core.config import settings 
 from app.core.database import SessionLocal
 from app.models.dataset import Dataset
+from app.models.user import User
 
 settings.upload_dir.mkdir(parents=True, exist_ok=True) 
 settings.metadata_dir.mkdir(parents=True, exist_ok=True) 
@@ -215,10 +218,11 @@ def save_dataset(
         encoding="utf-8",
     )
 
-    # 2. Persist to PostgreSQL if database is active
+    # 2. Persist to PostgreSQL if database is active (including raw content for cloud persistence)
     try:
         db = SessionLocal()
         try:
+            b64_content = base64.b64encode(content).decode("utf-8")
             db_dataset = Dataset(
                 id=dataset_id,
                 user_id=user_id, 
@@ -229,23 +233,41 @@ def save_dataset(
                 size_bytes=len(content),
                 quality_score=quality_score,
                 profile=profile,
+                file_content=b64_content,
             )
             db.add(db_dataset)
             db.commit()
         finally:
             db.close()
-    except Exception:
-        # Fallback continues without crashing if DB connection is intermittent
-        pass
+    except Exception as exc:
+        print(f"[Dataset] Could not persist dataset to PostgreSQL: {exc}")
 
     return metadata
 
 
 def get_dataset_path(dataset_id: str) -> Path:
+    # 1. Check local ephemeral disk
     matches = list(settings.upload_dir.glob(f"{dataset_id}.*"))
-    if not matches:
-        raise FileNotFoundError("Dataset not found.")
-    return matches[0]
+    if matches and matches[0].exists():
+        return matches[0]
+
+    # 2. Self-healing restoration from PostgreSQL if local disk was wiped (e.g. Render restart/sleep)
+    try:
+        db = SessionLocal()
+        try:
+            ds_uuid = uuid.UUID(dataset_id)
+            db_dataset = db.query(Dataset).filter(Dataset.id == ds_uuid).first()
+            if db_dataset and db_dataset.file_content:
+                file_bytes = base64.b64decode(db_dataset.file_content)
+                restored_path = settings.upload_dir / f"{dataset_id}.{db_dataset.extension}"
+                restored_path.write_bytes(file_bytes)
+                return restored_path
+        finally:
+            db.close()
+    except Exception as exc:
+        print(f"[Dataset] Could not restore file from database: {exc}")
+
+    raise FileNotFoundError("Dataset not found.")
 
 
 def get_dataset_metadata(dataset_id: str) -> dict:
