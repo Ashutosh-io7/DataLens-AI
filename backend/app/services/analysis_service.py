@@ -696,6 +696,7 @@ def analyze_question(
     df: pd.DataFrame,
     question: str,
     context: dict[str, Any] | None = None,
+    recent_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     # SMART ROUTING: Rule-based planner runs FIRST for well-known deterministic intents.
     # Only escalates to the LLM when rule-based returns 'unsupported' (complex/out-of-box questions).
@@ -719,13 +720,15 @@ def analyze_question(
     # Rule-based could not handle it — escalate to LLM for dynamic/out-of-box queries
     plan: dict[str, Any] | None = None
     planned_by = "rule_based"
+    llm_error_msg: str | None = None
     try:
-        llm_plan = get_llm_plan(question, df)
+        llm_plan = get_llm_plan(question, df, context=context, recent_history=recent_history)
         if llm_plan.get("intent") and llm_plan["intent"] != "unsupported":
             plan = llm_plan
             planned_by = "llm"
     except Exception as exc:
         print(f"LLM planner unavailable, falling back to rule-based planner: {exc}")
+        llm_error_msg = str(exc)
 
     if plan is None:
         plan = rule_plan
@@ -734,4 +737,9 @@ def analyze_question(
     result = execute_plan(plan, df, question)
     result["plan"] = plan
     result["planned_by"] = planned_by
+    if llm_error_msg and result.get("analysis_type") == "unsupported":
+        if "429" in llm_error_msg or "ResourceExhausted" in llm_error_msg or "rate limit" in llm_error_msg.lower():
+            result["explanation"] = "The AI analytical engine is temporarily cooling down from rate limits. Please try asking again in a few moments."
+        elif "Timeout" in llm_error_msg:
+            result["explanation"] = "The AI analytical engine took too long to respond. Please try again with a more specific question."
     return result

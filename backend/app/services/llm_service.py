@@ -141,7 +141,12 @@ Available Intents & Rules:
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
 
-def _call_llm(question: str, df: pd.DataFrame) -> dict:
+def _call_llm(
+    question: str,
+    df: pd.DataFrame,
+    context: dict[str, Any] | None = None,
+    recent_history: list[dict[str, Any]] | None = None,
+) -> dict:
     """Does the actual Gemini call with structured output."""
     llm = ChatGoogleGenerativeAI(
         model=settings.llm_model,
@@ -153,6 +158,25 @@ def _call_llm(question: str, df: pd.DataFrame) -> dict:
     structured_llm = llm.with_structured_output(QueryPlan)
 
     system_message = _SYSTEM_PROMPT.format(schema=_describe_schema(df))
+
+    context_str = ""
+    if context:
+        active_items = [f"{k}: {v}" for k, v in context.items() if v]
+        if active_items:
+            context_str += f"\nActive conversation focus: {', '.join(active_items)}"
+
+    if recent_history:
+        history_lines = []
+        for msg in recent_history[-4:]:
+            sender = "User" if msg.get("sender") == "user" else "DataLens AI"
+            text = (msg.get("text") or "")[:200]
+            if text:
+                history_lines.append(f"{sender}: {text}")
+        if history_lines:
+            context_str += "\nRecent conversation turns:\n" + "\n".join(history_lines)
+
+    if context_str:
+        system_message += f"\n\nContext & Prior Turns:\n{context_str}\nIf the user is asking a follow-up (e.g. 'why', 'what about diesel', 'show top 3 of those'), use this context to resolve references."
 
     result: QueryPlan = structured_llm.invoke(
         [
@@ -173,7 +197,12 @@ def _call_llm(question: str, df: pd.DataFrame) -> dict:
     return plan
 
 
-def get_llm_plan(question: str, df: pd.DataFrame) -> dict:
+def get_llm_plan(
+    question: str,
+    df: pd.DataFrame,
+    context: dict[str, Any] | None = None,
+    recent_history: list[dict[str, Any]] | None = None,
+) -> dict:
     """
     Asks Gemini to turn any natural-language question into an executable analysis plan.
     Enforces a hard 20-second deadline.
@@ -183,7 +212,7 @@ def get_llm_plan(question: str, df: pd.DataFrame) -> dict:
     if not settings.google_api_key:
         raise RuntimeError("No Gemini API key configured.")
 
-    future = _executor.submit(_call_llm, question, df)
+    future = _executor.submit(_call_llm, question, df, context, recent_history)
     try:
         return future.result(timeout=20)
     except concurrent.futures.TimeoutError:

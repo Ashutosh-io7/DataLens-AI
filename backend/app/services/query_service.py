@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import re
 from typing import Any
@@ -56,11 +56,12 @@ def answer_question(
     df: pd.DataFrame,
     question: str,
     context: dict[str, Any] | None = None,
+    recent_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     sub_questions = _split_compound_question(question)
 
     if len(sub_questions) == 1:
-        return analyze_question(df, question, context=context)
+        return analyze_question(df, question, context=context, recent_history=recent_history)
 
-    results = [analyze_question(df, q, context=context) for q in sub_questions]
+    results = [analyze_question(df, q, context=context, recent_history=recent_history) for q in sub_questions]
     return _merge_results(results)

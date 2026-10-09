@@ -59,7 +59,8 @@ def plan_query(
     if any(p in norm_q for p in [
         "what is this dataset about", "summarize this data", "summarize the dataset",
         "executive summary", "key takeaways", "dataset overview", "give me an overview",
-        "what insights can i get", "explain this dataset", "about this data"
+        "what insights can i get", "explain this dataset", "about this data",
+        "key insights", "main insights", "dataset insights", "data overview", "insights"
     ]):
         return {"intent": "dataset_summary"}
 
@@ -181,7 +182,10 @@ def plan_query(
                 break
 
     # 9. Context inheritance for follow-up questions
-    if context:
+    # ONLY inherit context if this question is an explicit anaphoric follow-up
+    # e.g. "what about it", "and that", "show those", "how about its distribution"
+    is_follow_up = bool(re.search(r"\b(it|its|that|those|them|this|these|what about|how about|same for)\b", norm_q))
+    if context and is_follow_up:
         if not target_col and context.get("target_column") in df.columns:
             target_col = context["target_column"]
         if not group_col and context.get("group_column") in df.columns:
@@ -209,8 +213,9 @@ def plan_query(
         }
 
     # 11. Check if this is a value count / frequency query
-    if any(p in norm_q for p in ["most common", "most frequent", "top", "distribution", "breakdown", "frequency", "count of"]):
-        # Bug fix: "Top 10 Cars" — if no column matched, use the first categorical column (likely the item name)
+    # ONLY for explicit frequency/breakdown requests (NOT ranking or "top N" items)
+    freq_triggers = ["most common", "most frequent", "frequency of", "distribution of categories", "breakdown of", "category breakdown", "count of each"]
+    if any(p in norm_q for p in freq_triggers):
         active_col = group_col or target_col
         if not active_col and categorical_cols:
             active_col = categorical_cols[0]
@@ -251,35 +256,35 @@ def plan_query(
             }
 
     # 14. Filter search (e.g., "how many <category> are there?")
-    # Check if a categorical value was mentioned
-    for cat_col in categorical_cols:
-        top_sample = df[cat_col].dropna().astype(str).str.strip().unique()[:30]
-        for val in top_sample:
-            norm_val = normalize(val)
-            if len(norm_val) > 2 and f" {norm_val} " in f" {norm_q} ":
-                return {
-                    "intent": "filter_count",
-                    "target_column": cat_col,
-                    "filter_value": val,
-                }
+    # ONLY if question explicitly asks for a count/frequency of records with that value,
+    # and does NOT mention any other column/metric or general analytical question.
+    is_count_query = any(w in norm_q for w in ["how many", "count of", "number of"])
+    has_other_metric = any(normalize(c) in norm_q for c in df.columns if c not in categorical_cols)
+    if is_count_query and not has_other_metric:
+        for cat_col in categorical_cols:
+            top_sample = df[cat_col].dropna().astype(str).str.strip().unique()[:30]
+            for val in top_sample:
+                norm_val = normalize(val)
+                if len(norm_val) > 2 and f" {norm_val} " in f" {norm_q} ":
+                    return {
+                        "intent": "filter_count",
+                        "target_column": cat_col,
+                        "filter_value": val,
+                    }
 
     # 15. Fallback ranking / general column check
-    if target_col:
-        if target_col in categorical_cols:
-            return {
-                "intent": "value_counts",
-                "target_column": target_col,
-                "n": n,
-                "ascending": is_bottom,
-            }
-        elif target_col in numeric_cols:
+    # ONLY return deterministic aggregation if agg_op was EXPLICITLY requested
+    # (e.g. "average salary", "total revenue").
+    # NEVER default to "mean" if no aggregation operation was asked for!
+    if target_col and agg_op:
+        if target_col in numeric_cols:
             return {
                 "intent": "aggregation",
                 "target_column": target_col,
-                "operation": agg_op or "mean",
+                "operation": agg_op,
             }
 
-    # Default fallback
+    # Default fallback — out-of-box, analytical, or lookup questions escalate to LLM
     return {
         "intent": "unsupported",
         "question": question,

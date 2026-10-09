@@ -202,10 +202,14 @@ def query_dataset(
                 detail="Question cannot be empty.",
             )
 
+        conv = get_or_create_conversation(dataset_id, user_id=str(current_user.id))
+        recent_messages = conv.get("messages", [])[-6:] if conv else []
+
         result = answer_question(
             df,
             request.question,
             context=request.context,
+            recent_history=recent_messages,
         )
 
         # Persist conversation turn (both file fallback and PostgreSQL)
