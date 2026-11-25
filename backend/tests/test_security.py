@@ -64,3 +64,50 @@ class TestSecurityUtilities:
                 settings.secret_key,
                 algorithms=[settings.jwt_algorithm],
             )
+
+class TestChartIsolation:
+    """Verifies that get_all_charts strictly scopes charts to the owning user."""
+
+    def test_get_all_charts_isolates_by_user_id(self, tmp_path, monkeypatch):
+        import json
+        from app.services import conversation_service
+
+        monkeypatch.setattr(settings, "data_dir", tmp_path)
+        settings.conversations_dir.mkdir(parents=True, exist_ok=True)
+        settings.metadata_dir.mkdir(parents=True, exist_ok=True)
+
+        # Force fallback path so test runs offline without PostgreSQL
+        def broken_session():
+            raise RuntimeError("DB offline")
+        monkeypatch.setattr(conversation_service, "SessionLocal", broken_session)
+
+        user_a = str(uuid.uuid4())
+        user_b = str(uuid.uuid4())
+        ds_a = str(uuid.uuid4())
+        ds_b = str(uuid.uuid4())
+
+        for ds_id, owner, chart_title in [
+            (ds_a, user_a, "User A Revenue"),
+            (ds_b, user_b, "User B Confidential"),
+        ]:
+            (settings.metadata_dir / f"{ds_id}.json").write_text(
+                json.dumps({"dataset_id": ds_id, "user_id": owner, "filename": f"{owner}.csv"}),
+                encoding="utf-8",
+            )
+            (settings.conversations_dir / f"{ds_id}.json").write_text(
+                json.dumps({
+                    "dataset_id": ds_id,
+                    "user_id": owner,
+                    "messages": [
+                        {"id": "1", "sender": "user", "text": "Plot chart"},
+                        {"id": "2", "sender": "ai", "text": "Done", "chart": {"title": chart_title}},
+                    ],
+                }),
+                encoding="utf-8",
+            )
+
+        charts_a = conversation_service.get_all_charts(limit=60, user_id=user_a)
+        charts_b = conversation_service.get_all_charts(limit=60, user_id=user_b)
+
+        assert [c["chart"]["title"] for c in charts_a] == ["User A Revenue"]
+        assert [c["chart"]["title"] for c in charts_b] == ["User B Confidential"]

@@ -226,22 +226,23 @@ def clear_conversation(dataset_id: str) -> bool:
         return True
 
 
-def get_all_charts(limit: int = 60) -> list[dict[str, Any]]:
+def get_all_charts(limit: int = 60 , user_id: str | None = None) -> list[dict[str, Any]]:
     """Every AI message that produced a chart, newest first. Checks PostgreSQL first,
     falling back to file storage if PostgreSQL is offline."""
     # 1. Try PostgreSQL
     try:
         db = SessionLocal()
         try:
-            rows = (
+            query = (
                 db.query(Message, Conversation, Dataset)
                 .join(Conversation, Message.conversation_id == Conversation.id)
                 .join(Dataset, Conversation.dataset_id == Dataset.id)
                 .filter(Message.sender == "ai", Message.chart.isnot(None))
-                .order_by(Message.created_at.desc())
-                .limit(limit)
-                .all()
             )
+            if user_id is not None: 
+                query = query.filter(Dataset.user_id == uuid.UUID(user_id))
+
+            rows = query.order_by(Message.created_at.desc()).limit(limit).all()
 
             if rows:
                 results = []
@@ -279,12 +280,17 @@ def get_all_charts(limit: int = 60) -> list[dict[str, Any]]:
         dataset_id = conv_file.stem
         try:
             conv_data = json.loads(conv_file.read_text(encoding="utf-8"))
+            meta = {}
             filename = "Dataset"
             try:
                 meta = get_dataset_metadata(dataset_id)
                 filename = meta.get("filename", "Dataset")
             except Exception:
                 pass
+
+            owner_id = conv_data.get("user_id") or meta.get("user_id")
+            if user_id is not None and owner_id != user_id : 
+                continue 
 
             messages = conv_data.get("messages", [])
             for i, msg in enumerate(messages):

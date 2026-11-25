@@ -111,7 +111,7 @@ async def upload_dataset(
 
 @router.get("/charts") 
 def get_charts(limit: int = 60, current_user: User = Depends(get_current_user)): 
-    return {"charts": get_all_charts(limit=limit)}
+    return {"charts": get_all_charts(limit=limit , user_id=str(current_user.id))}
 
 @router.get("/health")
 def health_check():
