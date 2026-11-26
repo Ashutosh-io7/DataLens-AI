@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react"; 
 import { useParams, useNavigate } from "react-router-dom";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Download,
   ArrowLeft,
   Bookmark,
   BookmarkCheck,
@@ -71,7 +75,9 @@ function DatasetWorkspace() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
 
-  // Filter and paginate data
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+
+  // Filter rows first
   const filteredData = data.filter((row) => {
     if (!tableSearch.trim()) return true;
     const query = tableSearch.toLowerCase();
@@ -80,12 +86,65 @@ function DatasetWorkspace() {
     );
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  // Apply numeric-aware sorting (empty values stay at the bottom)
+  const sortedData = sortConfig.key
+    ? [...filteredData].sort((a, b) => {
+        const valA = a[sortConfig.key];
+        const valB = b[sortConfig.key];
+        const emptyA = valA === null || valA === undefined || valA === "";
+        const emptyB = valB === null || valB === undefined || valB === "";
+        if (emptyA && emptyB) return 0;
+        if (emptyA) return 1;
+        if (emptyB) return -1;
+
+        const numA = Number(valA);
+        const numB = Number(valB);
+        const cmp =
+          Number.isFinite(numA) && Number.isFinite(numB)
+            ? numA - numB
+            : String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: "base" });
+
+        return sortConfig.direction === "asc" ? cmp : -cmp;
+      })
+    : filteredData;
+
+  const totalPages = Math.max(1, Math.ceil(sortedData.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
-  const paginatedData = filteredData.slice(
+  const paginatedData = sortedData.slice(
     (safeCurrentPage - 1) * pageSize,
     safeCurrentPage * pageSize
   );
+
+  const handleSort = (columnKey) => {
+    setSortConfig((prev) => {
+      if (prev.key !== columnKey) return { key: columnKey, direction: "asc" };
+      if (prev.direction === "asc") return { key: columnKey, direction: "desc" };
+      return { key: null, direction: "asc" }; // 3rd click clears sort
+    });
+    setCurrentPage(1);
+  };
+
+  const handleExportCsv = () => {
+    if (!columns.length || !sortedData.length) return;
+    const escapeCell = (val) => {
+      const str = val === null || val === undefined ? "" : String(val);
+      return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const headerRow = columns.map(escapeCell).join(",");
+    const bodyRows = sortedData.map((row) =>
+      columns.map((col) => escapeCell(row[col])).join(",")
+    );
+    const blob = new Blob([[headerRow, ...bodyRows].join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const baseName = fileName.replace(/\.[^/.]+$/, "");
+    link.href = url;
+    link.download = `${baseName}-view.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const [savedInsightIds, setSavedInsightIds] = useState(() =>
     getSavedInsights().map((item) => item.id)
@@ -143,6 +202,7 @@ function DatasetWorkspace() {
         setColumns(dataset.column_names || []);
         setTotalRows(dataset.rows || 0);
         setProfile(dataset.profile || null);
+        setSortConfig({ key: null, direction: "asc" });
       } catch (err) {
         setError(err.message || "Unable to load dataset.");
       } finally {
@@ -404,6 +464,15 @@ function DatasetWorkspace() {
                         className="h-8 w-40 rounded-lg border border-slate-200 bg-white pl-7 pr-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-100"
                       />
                     </div>
+                    <button
+                      onClick={handleExportCsv}
+                      disabled={sortedData.length === 0}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                      title="Download current filtered/sorted view as CSV"
+                    >
+                      <Download size={13} />
+                      <span className="hidden sm:inline">Export CSV</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -446,16 +515,33 @@ function DatasetWorkspace() {
                           <th className="border-b border-slate-200 px-3 py-2.5 font-mono text-[11px] font-semibold text-slate-400 bg-slate-50 w-10 text-center">
                             #
                           </th>
-                          {columns.map((column) => (
-                            <th
-                              key={column}
-                              className="border-b border-slate-200 px-3.5 py-2.5 font-semibold text-slate-700 bg-slate-50"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <span>{column}</span>
-                              </div>
-                            </th>
-                          ))}
+                          {columns.map((column) => {
+                            const isSorted = sortConfig.key === column;
+                            return (
+                              <th
+                                key={column}
+                                className="border-b border-slate-200 px-3.5 py-2.5 font-semibold text-slate-700 bg-slate-50"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handleSort(column)}
+                                  className="flex items-center gap-1.5 text-left transition hover:text-blue-600 cursor-pointer"
+                                  title={`Sort by ${column}`}
+                                >
+                                  <span>{column}</span>
+                                  {isSorted ? (
+                                    sortConfig.direction === "asc" ? (
+                                      <ArrowUp size={12} className="text-blue-600 shrink-0" />
+                                    ) : (
+                                      <ArrowDown size={12} className="text-blue-600 shrink-0" />
+                                    )
+                                  ) : (
+                                    <ArrowUpDown size={12} className="text-slate-300 shrink-0" />
+                                  )}
+                                </button>
+                              </th>
+                            );
+                          })}
                         </tr>
                       </thead>
 
